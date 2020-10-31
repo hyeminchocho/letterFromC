@@ -1,5 +1,5 @@
 let inputDir = "generated/Animations";
-let title = "Annyeong-201031-061051";
+let title = "Annyeong-201031-144327";
 let numAnim = 19121;
 let allImages = [];
 let scrollPath = inputDir+"/"+title+"/"+title+"-scroll.json";
