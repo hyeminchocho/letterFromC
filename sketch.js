@@ -1,6 +1,6 @@
 let inputDir = "generated/Animations";
 let title = "Annyeong-201031-061051";
-let numAnim = 19121;
+let numAnim = 17701;
 let allImages = [];
 let scrollPath = inputDir+"/"+title+"/"+title+"-scroll.json";
 let scrollJSON;
@@ -18,8 +18,8 @@ let prev_t = -timeUnit*2;
 let toLoadLineIdx = 0;
 let scrollIdx = 0;
 
-let scrollJSONLen = 907;
-let speedJSONLen = 907;
+let scrollJSONLen = 6431;
+let speedJSONLen = 6431;
 
 let allLoaded = false;
 let loadedNum = 0;
