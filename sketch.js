@@ -1,5 +1,5 @@
 let inputDir = "generated/Animations";
-let title = "Annyeong-201031-061051";
+let title = "Annyeong-201031-144327";
 let numAnim = 17701;
 let allImages = [];
 let scrollPath = inputDir+"/"+title+"/"+title+"-scroll.json";
@@ -138,7 +138,6 @@ function updateLines(curr_t, prev_t){
 
                 currLines.push(allImages[toLoadLineIdx]);
                 toLoadLineIdx += 1;
-                toLoadLineIdx = min(toLoadLineIdx, endAnimIdx);
             }
         }
         // for (let n = 0; n < currRemoveNum; n++){
