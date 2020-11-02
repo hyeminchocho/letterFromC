@@ -68,9 +68,6 @@ function draw() {
     // image(allImages[3], 0, 0);
     if (!isStatic){
         if (allLoaded){
-            fill(255);
-            stroke(255);
-            rect(0, 0, windowWidth, 9);
             prev_t = updateLines(curr_t, prev_t);
             let y = 0;
             for (let i = 0; i < currLines.length; i++){
@@ -102,6 +99,9 @@ function draw() {
                 // console.log(lineHeight);
                 // console.log(currLines[i].height);
             }
+            fill(255);
+            stroke(255);
+            rect(0, 0, windowWidth, 9);
             drawCursor();
             curr_t = millis();
         } else {
