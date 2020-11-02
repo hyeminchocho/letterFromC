@@ -1,6 +1,7 @@
 let inputDir = "generated/Animations";
 let title = "Annyeong-201031-144327";
-let numAnim = 17701;
+// let numAnim = 17701;
+let numAnim = 867;
 let allImages = [];
 let scrollPath = inputDir+"/"+title+"/"+title+"-scroll.json";
 let scrollJSON;
@@ -18,8 +19,8 @@ let prev_t = -timeUnit*2;
 let toLoadLineIdx = 0;
 let scrollIdx = 0;
 
-let scrollJSONLen = 6431;
-let speedJSONLen = 6431;
+let scrollJSONLen = 867;
+let speedJSONLen = 867;
 
 let allLoaded = false;
 let loadedNum = 0;
@@ -50,7 +51,7 @@ function setup() {
         speedJSON = loadJSON(speedPath);
         for (let i = 0; i < numAnim; i++){
             let imagePath = inputDir + "/" + title + "/"
-                + title + "-" + nf(i, 6) + ".jpg";
+                + title + "-" + nf(i+1, 6) + ".jpg";
             allImages[i] = loadImage(imagePath, callback);
         }
     }
@@ -67,13 +68,36 @@ function draw() {
     // image(allImages[3], 0, 0);
     if (!isStatic){
         if (allLoaded){
+            fill(255);
+            stroke(255);
+            rect(0, 0, windowWidth, 9);
             prev_t = updateLines(curr_t, prev_t);
             let y = 0;
             for (let i = 0; i < currLines.length; i++){
-                image(currLines[i], 10, y+10,
-                      currLines[i].width*scale, currLines[i].height*scale);
-                // console.log(currLines[i].height*scale);
-                y += lineHeight;
+                if (currLines.length > linesPerPage){
+                    scrollIdx = 999999;
+                }
+                let offY = 0;
+                let offYrest = 0;
+                if (currLines[0].height > 36){
+                    offY = -(currLines.length - 1) * lineHeight;
+                    offYrest = (linesPerPage * lineHeight)-(currLines.length) * lineHeight;
+                    if (i == 0){
+                        image(currLines[i], 10, y+10+offY,
+                              currLines[i].width*scale, currLines[i].height*scale);
+                        y += lineHeight;
+                    } else {
+                        image(currLines[i], 10, y+10+offYrest,
+                              currLines[i].width*scale, currLines[i].height*scale);
+                        y += lineHeight;
+                    }
+
+                } else {
+                    image(currLines[i], 10, y+10,
+                          currLines[i].width*scale, currLines[i].height*scale);
+                    // console.log(currLines[i].height*scale);
+                    y += lineHeight;
+                }
                 // console.log(scale);
                 // console.log(lineHeight);
                 // console.log(currLines[i].height);
@@ -103,6 +127,9 @@ function draw() {
 
 function drawCursor(){
     let numLines = currLines.length;
+    if (numLines > 0 && currLines[0].height > 36){
+        numLines = linesPerPage;
+    }
     // if (numLines < linesPerPage){
     if (floor((curr_t-prev_t)/1500) % 2 == 0){
         fill(0, 0, 0);
@@ -130,9 +157,16 @@ function updateLines(curr_t, prev_t){
             currScrollNum = currScroll[0];
             currRemoveNum = currScroll[1];
         }
-        for (let n = 0; n < currScrollNum; n++){
-            if (toLoadLineIdx < numAnim){
-                if (currLines.length > linesPerPage){
+        if (toLoadLineIdx < numAnim){
+            if (currScrollNum == linesPerPage){
+                // for (let i =0; i < currScrollNum; i++){
+                //     currLines.splice(0, 1);
+                // }
+                currLines = [];
+                currLines.push(allImages[toLoadLineIdx]);
+                toLoadLineIdx += 1;
+            } else {
+                if (currLines.length >= (linesPerPage)){
                     currLines.splice(0, 1);
                 }
 
@@ -140,6 +174,8 @@ function updateLines(curr_t, prev_t){
                 toLoadLineIdx += 1;
             }
         }
+        // for (let n = 0; n < currScrollNum; n++){
+        // }
         // for (let n = 0; n < currRemoveNum; n++){
         //     if (currLines.length > 0){
         //         currLines.splice(0, 1);
