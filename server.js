@@ -1,3 +1,6 @@
+// Mostly from
+// https://github.com/lmccart/itp-creative-js/tree/master/Spring-2014/week6/04_socket_server
+// Which is
 // Based off of Shawn Van Every's Live Web
 // http://itp.nyu.edu/~sve204/liveweb_fall2013/week3.html
 
@@ -7,6 +10,7 @@ var http = require('http');
 // URL module
 var url = require('url');
 var path = require('path');
+// const querystring = require('querystring');
 
 // Using the filesystem module
 var fs = require('fs');
@@ -20,12 +24,14 @@ console.log('Server started on port 8080');
 function handleRequest(req, res) {
   // What did we request?
   var pathname = req.url;
-  
+
   // If blank let's ask for index.html
   if (pathname == '/') {
     pathname = '/index.html';
+  } else if (pathname == '/?frame'){
+      pathname = '/frame.html';
   }
-  
+
   // Ok what's our file extension
   var ext = path.extname(pathname);
 
