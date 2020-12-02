@@ -14,6 +14,7 @@ var path = require('path');
 
 // Using the filesystem module
 var fs = require('fs');
+const fetch = require("node-fetch"); // for npyjs
 
 const PORT = process.env.PORT || '8080';
 var server = http.createServer(handleRequest);

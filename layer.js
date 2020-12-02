@@ -1,32 +1,4 @@
-// class SpectralNorm extends tf.Regularizer{
-//     constructor(config){
-//         super({});
-//         this.power_iteration = config.power_iteration;
-//     }
-
-//     call(inputs, kwargs){
-//         let w_shape = w.shape.as_list();
-//         w = w.reshape([-1, w_shape[-1]]);
-
-//         let u = tf.randomNormal([1, w_shape[-1]]);
-
-//         let u_hat = u;
-//         let v_hat = null;
-//         for (let i = 0; i < power_iteration; i++){
-//             let v_ = u_hat.matMul(w.transpose());
-//             v_hat = tf.nn.l2_normalize(v_);
-
-//             let u_ = v_hat.matmul(w);
-//         }
-
-//         sigma = v_hat.matmul(w).matmul(u_hat.transpose());
-
-//         w_norm = w / sigma;
-//         w_norm = w_norm.reshape(w_shape);
-
-//         return w_norm;
-//     }
-// }
+let n = new npyjs();
 
 class ConditionalBatchNorm extends tf.layers.Layer{
 
@@ -250,11 +222,11 @@ class GeneratorPrep extends tf.layers.Layer{
     // call(z, y, num_blocks, vocab_size, embed_y, kwargs){
     call(inputs, kwargs){
 
-        let spatial_embedding = new SpatialEmbedding({vocab_size:this.vocab_size, filter_dim:this.embed_y});
+        this.spatial_embedding = new SpatialEmbedding({vocab_size:this.vocab_size, filter_dim:this.embed_y});
         let z = inputs[0];
         let y = inputs[1].asType('int32');
         // let se_layer = spatial_embedding.apply(this.y);
-        let se_layer = spatial_embedding.apply(y);
+        let se_layer = this.spatial_embedding.apply(y);
 
         let z_per_block = tf.split(z, this.num_blocks + 1, 1);
         let z0 = z_per_block[0];
@@ -338,20 +310,78 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
 
     return model;
 }
+function eval(seed, labels, g){
+    let res = g.apply([seed, labels]);
+    console.log("Result!");
+    res = res.add(1.0).div(2.0).mul(255);
+    res.print();
+    res = res.squeeze([0]).asType('int32');
+    // res = tf.expandDims(res, 2);
+    const printCanvas = document.getElementById("lala");
+    console.log(printCanvas);
+    const image = tf.browser.toPixels(res, printCanvas);
+    console.log(res);
+    res.print();
+}
+
 let seed = tf.randomNormal([1, 128]);
 let labels = tf.tensor([0, 1, 2], undefined, 'int32');
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
-let res = g.apply([seed, labels]);
-console.log("Result!");
-res = res.add(1.0).div(2.0).mul(255);
-res.print();
-res = res.squeeze([0]).asType('int32');
-// res = tf.expandDims(res, 2);
-const printCanvas = document.getElementById("lala");
-console.log(printCanvas);
-const image = tf.browser.toPixels(res, printCanvas);
-// const saveResults = g.save('downloads://haha');
-console.log(saveResults);
-console.log(res);
-res.print();
+let sp_emb_kernel = null;
+
+let toload = ["sp_emb.npy", "dense_12.npy"];
+let loadednpy = {};
+let promises = [];
+
+// $.each(toload, function(i, el){
+//     calls.push(
+//     )
+// });
+
+// let lala = n.load("sp_emb.npy", (res, filename) => {
+//     console.log("Load sp_emb");
+//     console.log(res);
+//     console.log(filename);
+//     let t = tf.tensor(res.data, res.shape);
+//     loadednpy[filename] = t;
+//     return t;
+// });
+// let lala2 = n.load("dense_12.npy", (res, filename) => {
+//     console.log("Load dense_12");
+//     console.log(res);
+//     console.log(filename);
+//     let t = tf.tensor(res.data, res.shape);
+//     loadednpy[filename] = t;
+//     return t;
+// });
+toload.map((fn) => {
+    promises.push(n.load(fn).then(res => {
+        let t = tf.tensor(res.data, res.shape);
+        return t;
+    }));
+});
+
+// let lala = n.load("sp_emb.npy").then(res => {
+//     return res;
+// });
+// let lala2 = n.load("dense_12.npy").then(res => {
+//     return res;
+// });
+
+Promise.all(promises).then((values) => {
+    console.log("done promise!");
+    console.log(values);
+    p(values[0]);
+});
+
+
+// let npyLoaded = $.when(n);
+
+function p (em){
+    eval(seed, labels, g);
+    g.layers[2].spatial_embedding.setWeights([em]);
+    eval(seed, labels, g);
+};
+
+
 
