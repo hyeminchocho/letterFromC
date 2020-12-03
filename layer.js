@@ -10,20 +10,23 @@ class ConditionalBatchNorm extends tf.layers.Layer{
     }
 
     call(inputs, kwargs){
-        let net = tf.layers.batchNormalization({scale:false, center:false}).apply(inputs);
+        this.bn = tf.layers.batchNormalization({scale:false, center:false});
+        let net = this.bn.apply(inputs);
         let num_channels = net.shape[3];
 
-        let gamma = tf.layers.dense({units:num_channels, useBias:false, activation:'linear',
-                                     kernelRegularizer:tf.regularizers.l2({}),
-                                     kernelInitializer:tf.initializers.orthogonal({gain:1})}).apply(this.conditioning_vector);
+        this.dense1 = tf.layers.dense({units:num_channels, useBias:false, activation:'linear',
+                                       kernelRegularizer:tf.regularizers.l2({}),
+                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
+        let gamma = this.dense1.apply(this.conditioning_vector);
         gamma = gamma.reshape([-1, 1, 1, num_channels]);
         gamma = tf.tile(gamma, [1, net.shape[1], net.shape[2], 1]);
         // net *= gamma;
         net = net.mul(gamma);
 
-        let beta = tf.layers.dense({units:num_channels, useBias:false,
-                                    activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
-                                    kernelInitializer:tf.initializers.orthogonal({gain:1})}).apply(this.conditioning_vector);
+        this.dense2 = tf.layers.dense({units:num_channels, useBias:false,
+                                       activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
+                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
+        let beta = this.dense2.apply(this.conditioning_vector);
         beta = beta.reshape([-1, 1, 1, num_channels]);
         // net += beta;
         net = net.add(beta);
@@ -50,10 +53,10 @@ class ResNetBlockUp extends tf.layers.Layer{
     call(inputs, kwargs){
         let net = inputs;
 
-        let cbn = new ConditionalBatchNorm({name:this.nm, cbn_idx:1,
+        this.cbn = new ConditionalBatchNorm({name:this.nm, cbn_idx:1,
                                         conditioning_vector:this.conditioning_vector,
                                         k_reg:this.k_reg});
-        net = cbn.apply(net);
+        net = this.cbn.apply(net);
         net = tf.relu(net);
 
         let up_stride = (2, 2);
@@ -61,25 +64,28 @@ class ResNetBlockUp extends tf.layers.Layer{
             up_stride = (2, 1);
         }
 
-        net = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(3, 3), strides:up_stride,
-                                         kernelRegularizer:tf.regularizers.l2(),
-                                         kernelInitializer:tf.initializers.randomNormal({mean:0.0,
-                                                                                         stddev:1.0}),
-                                         padding:'same', useBias:true}).apply(net);
+        this.conv2dT1 = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(3, 3), strides:up_stride,
+                                                  kernelRegularizer:tf.regularizers.l2(),
+                                                  kernelInitializer:tf.initializers.randomNormal({mean:0.0,
+                                                                                                  stddev:1.0}),
+                                                  padding:'same', useBias:true});
+        net = this.conv2dT1.apply(net);
 
-        let cbn2 = new ConditionalBatchNorm({name:this.nm, cbn_idx:2,
+        this.cbn2 = new ConditionalBatchNorm({name:this.nm, cbn_idx:2,
                                          conditioning_vector:this.conditioning_vector,
                                          k_reg:this.k_reg});
-        net = cbn2.apply(net);
+        net = this.cbn2.apply(net);
         net = tf.relu(net);
-        net = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3), strides:(1, 1),
-                                kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                kernelRegularizer:tf.regularizers.l2(), padding:'same', useBias:true}).apply(net);
+        this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3), strides:(1, 1),
+                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        kernelRegularizer:tf.regularizers.l2(), padding:'same', useBias:true});
+        net = this.conv2d.apply(net);
 
-        let shortcut = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(1, 1), strides:up_stride,
-                                                  kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                                  kernelRegularizer:tf.regularizers.l2(),
-                                                  padding:'same', useBias:true}).apply(inputs);
+        this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(1, 1), strides:up_stride,
+                                                   kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                                   kernelRegularizer:tf.regularizers.l2(),
+                                                   padding:'same', useBias:true});
+        let shortcut = this.conv2dT2.apply(inputs);
         net = net.add(shortcut);
         return net;
     }
@@ -217,6 +223,7 @@ class GeneratorPrep extends tf.layers.Layer{
         this.kernel_reg = config.kernel_reg;
         this.blocks_with_attention = config.blocks_with_attention;
         this.c = config.c;
+        this.B_list = [];
     }
 
     // call(z, y, num_blocks, vocab_size, embed_y, kwargs){
@@ -250,19 +257,23 @@ class GeneratorPrep extends tf.layers.Layer{
                                      is_last_block:is_last_block,
                                      conditioning_vector:z_per_block[block_idx],
                                      k_reg:this.kernel_reg});
+            this.B_list.push(res);
             net = res.apply(net);
             if (this.blocks_with_attention.includes(name)){
                 let nlb = new NonLocalBlock({name:name, k_reg:this.kernel_reg});
+                this.B_list.push(nlb);
                 net = nlb.apply(net);
             }
         }
-        net = tf.layers.batchNormalization().apply(net);
+        this.bn = tf.layers.batchNormalization();
+        net = this.bn.apply(net);
         net = tf.relu(net);
-        net = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
-                                strides:(1, 1),
-                                kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                kernelRegularizer:tf.regularizers.l2(),
-                                padding:'same'}).apply(net);
+        this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
+                                        strides:(1, 1),
+                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        kernelRegularizer:tf.regularizers.l2(),
+                                        padding:'same'});
+        net = this.conv2d.apply(net);
 
         net = tf.tanh(net);
         return net;
@@ -312,9 +323,10 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
 }
 function eval(seed, labels, g){
     let res = g.apply([seed, labels]);
+    // let res = g.predict([seed, labels]);
     console.log("Result!");
-    res = res.add(1.0).div(2.0).mul(255);
     res.print();
+    res = res.add(1.0).div(2.0).mul(255);
     res = res.squeeze([0]).asType('int32');
     // res = tf.expandDims(res, 2);
     const printCanvas = document.getElementById("lala");
@@ -329,31 +341,60 @@ let labels = tf.tensor([0, 1, 2], undefined, 'int32');
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
 let sp_emb_kernel = null;
 
-let toload = ["sp_emb.npy", "dense_12.npy"];
+let toload = [
+    "SpatialEmbedding_1-filter_bank.npy",
+    "CBN_B1_1_dense_1-kernel.npy",
+    "CBN_B1_1_batchNormalization-moving_mean.npy",
+    "CBN_B1_1_batchNormalization-moving_variance.npy",
+    "CBN_B1_1_dense_2-kernel.npy", // 4
+    "B1_conv2dTranspose_1-kernel.npy",
+    "B1_conv2dTranspose_1-bias.npy", // 6
+    "CBN_B1_2_dense_1-kernel.npy",
+    "CBN_B1_2_batchNormalization-moving_mean.npy",
+    "CBN_B1_2_batchNormalization-moving_variance.npy",
+    "CBN_B1_2_dense_2-kernel.npy", // 10
+    "B1_conv2d-kernel.npy",
+    "B1_conv2d-bias.npy", // 12
+    "B1_conv2dTranspose_2-kernel.npy",
+    "B1_conv2dTranspose_2-bias.npy", // 14
+    "CBN_B2_1_dense_1-kernel.npy",
+    "CBN_B2_1_batchNormalization-moving_mean.npy",
+    "CBN_B2_1_batchNormalization-moving_variance.npy",
+    "CBN_B2_1_dense_2-kernel.npy",
+    "B2_conv2dTranspose_1-kernel.npy",
+    "B2_conv2dTranspose_1-bias.npy",
+    "CBN_B2_2_dense_1-kernel.npy",
+    "CBN_B2_2_batchNormalization-moving_mean.npy",
+    "CBN_B2_2_batchNormalization-moving_variance.npy",
+    "CBN_B2_2_dense_2-kernel.npy",
+    "B2_conv2d-kernel.npy",
+    "B2_conv2d-bias.npy",
+    "B2_conv2dTranspose_2-kernel.npy",
+    "B2_conv2dTranspose_2-bias.npy", // 28
+    "CBN_B3_1_dense_1-kernel.npy",
+    "CBN_B3_1_batchNormalization-moving_mean.npy",
+    "CBN_B3_1_batchNormalization-moving_variance.npy",
+    "CBN_B3_1_dense_2-kernel.npy",
+    "B3_conv2dTranspose_1-kernel.npy",
+    "B3_conv2dTranspose_1-bias.npy",
+    "CBN_B3_2_dense_1-kernel.npy",
+    "CBN_B3_2_batchNormalization-moving_mean.npy",
+    "CBN_B3_2_batchNormalization-moving_variance.npy",
+    "CBN_B3_2_dense_2-kernel.npy",
+    "B3_conv2d-kernel.npy",
+    "B3_conv2d-bias.npy",
+    "B3_conv2dTranspose_2-kernel.npy",
+    "B3_conv2dTranspose_2-bias.npy", // 42
+    "NonLocalBlock_B3_1-NonLocalBlock_B3_sigma.npy",
+    "generatorPrep_batchNormalization-gamma.npy",
+    "generatorPrep_batchNormalization-beta.npy",
+    "generatorPrep_batchNormalization-moving_mean.npy",
+    "generatorPrep_batchNormalization-moving_variance.npy",
+    "generatorPrep_cond2d-kernel.npy",
+    "generatorPrep_cond2d-bias.npy"];
 let loadednpy = {};
 let promises = [];
 
-// $.each(toload, function(i, el){
-//     calls.push(
-//     )
-// });
-
-// let lala = n.load("sp_emb.npy", (res, filename) => {
-//     console.log("Load sp_emb");
-//     console.log(res);
-//     console.log(filename);
-//     let t = tf.tensor(res.data, res.shape);
-//     loadednpy[filename] = t;
-//     return t;
-// });
-// let lala2 = n.load("dense_12.npy", (res, filename) => {
-//     console.log("Load dense_12");
-//     console.log(res);
-//     console.log(filename);
-//     let t = tf.tensor(res.data, res.shape);
-//     loadednpy[filename] = t;
-//     return t;
-// });
 toload.map((fn) => {
     promises.push(n.load(fn).then(res => {
         let t = tf.tensor(res.data, res.shape);
@@ -361,25 +402,64 @@ toload.map((fn) => {
     }));
 });
 
-// let lala = n.load("sp_emb.npy").then(res => {
-//     return res;
-// });
-// let lala2 = n.load("dense_12.npy").then(res => {
-//     return res;
-// });
 
-Promise.all(promises).then((values) => {
+Promise.all(promises).then((v) => {
     console.log("done promise!");
-    console.log(values);
-    p(values[0]);
+    console.log(v);
+    eval(seed, labels, g);
+    let genPrep = g.layers[2];
+    let B1 = genPrep.B_list[0];
+    let B2 = genPrep.B_list[1];
+    let B3 = genPrep.B_list[2];
+    let NLB = genPrep.B_list[3];
+
+    genPrep.spatial_embedding.setWeights([v[0]]);
+
+    B1.cbn.dense1.setWeights([v[1]]);
+    B1.cbn.bn.setWeights([v[2], v[3]]);
+    B1.cbn.dense2.setWeights([v[4]]);
+    B1.conv2dT1.setWeights([v[5], v[6]]);
+    B1.cbn2.dense1.setWeights([v[7]]);
+    B1.cbn2.bn.setWeights([v[8], v[9]]);
+    B1.cbn2.dense2.setWeights([v[10]]);
+    B1.conv2d.setWeights([v[11], v[12]]);
+    B1.conv2dT2.setWeights([v[13], v[14]]);
+
+    let s = 14;
+    B2.cbn.dense1.setWeights([v[s+1]]);
+    B2.cbn.bn.setWeights([v[s+2], v[s+3]]);
+    B2.cbn.dense2.setWeights([v[s+4]]);
+    B2.conv2dT1.setWeights([v[s+5], v[s+6]]);
+    B2.cbn2.dense1.setWeights([v[s+7]]);
+    B2.cbn2.bn.setWeights([v[s+8], v[s+9]]);
+    B2.cbn2.dense2.setWeights([v[s+10]]);
+    B2.conv2d.setWeights([v[s+11], v[s+12]]);
+    B2.conv2dT2.setWeights([v[s+13], v[s+14]]);
+
+    s = 28;
+    B3.cbn.dense1.setWeights([v[s+1]]);
+    B3.cbn.bn.setWeights([v[s+2], v[s+3]]);
+    B3.cbn.dense2.setWeights([v[s+4]]);
+    B3.conv2dT1.setWeights([v[s+5], v[s+6]]);
+    B3.cbn2.dense1.setWeights([v[s+7]]);
+    B3.cbn2.bn.setWeights([v[s+8], v[s+9]]);
+    B3.cbn2.dense2.setWeights([v[s+10]]);
+    B3.conv2d.setWeights([v[s+11], v[s+12]]);
+    B3.conv2dT2.setWeights([v[s+13], v[s+14]]);
+
+    s = 42;
+    NLB.setWeights([v[s+1]]);
+    genPrep.bn.setWeights([v[s+2], v[s+3], v[s+4], v[s+5]]);
+    genPrep.conv2d.setWeights([v[s+6], v[s+7]]);
+    eval(seed, labels, g);
 });
 
 
 // let npyLoaded = $.when(n);
 
-function p (em){
-    eval(seed, labels, g);
-    g.layers[2].spatial_embedding.setWeights([em]);
+function loadnpy(li){
+    console.log(g.getWeights());
+    g.summary();
     eval(seed, labels, g);
 };
 
