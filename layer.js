@@ -7,27 +7,36 @@ class ConditionalBatchNorm extends tf.layers.Layer{
         super({name:'CBN_'+config.name+'_'+config.cbn_idx});
         this.conditioning_vector = config.conditioning_vector;
         this.k_reg = config.k_reg;
+
+        let d = config.cbn_idx - 1 + parseInt(config.name.slice(-1)) - 1;
+        this.num_channels = 512;
+        for (let i = 0; i < d; i ++){
+            this.num_channels /= 2;
+        }
     }
 
-    call(inputs, kwargs){
+    build(input_shape){
         this.bn = tf.layers.batchNormalization({scale:false, center:false});
-        let net = this.bn.apply(inputs);
-        let num_channels = net.shape[3];
-
-        this.dense1 = tf.layers.dense({units:num_channels, useBias:false, activation:'linear',
+        this.dense1 = tf.layers.dense({units:this.num_channels, useBias:false,
+                                       activation:'linear',
                                        kernelRegularizer:tf.regularizers.l2({}),
                                        kernelInitializer:tf.initializers.orthogonal({gain:1})});
-        let gamma = this.dense1.apply(this.conditioning_vector);
-        gamma = gamma.reshape([-1, 1, 1, num_channels]);
+        this.dense2 = tf.layers.dense({units:this.num_channels, useBias:false,
+                                       activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
+                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
+    }
+
+    call(inputs, conditioning_vector, kwargs){
+        let net = this.bn.apply(inputs);
+
+        let gamma = this.dense1.apply(conditioning_vector);
+        gamma = gamma.reshape([-1, 1, 1, this.num_channels]);
         gamma = tf.tile(gamma, [1, net.shape[1], net.shape[2], 1]);
         // net *= gamma;
         net = net.mul(gamma);
 
-        this.dense2 = tf.layers.dense({units:num_channels, useBias:false,
-                                       activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
-                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
-        let beta = this.dense2.apply(this.conditioning_vector);
-        beta = beta.reshape([-1, 1, 1, num_channels]);
+        let beta = this.dense2.apply(conditioning_vector);
+        beta = beta.reshape([-1, 1, 1, this.num_channels]);
         // net += beta;
         net = net.add(beta);
         return net;
@@ -46,45 +55,53 @@ class ResNetBlockUp extends tf.layers.Layer{
         this.nm = config.name;
         this.output_dim = config.output_dim;
         this.is_last_block = config.is_last_block;
-        this.conditioning_vector = config.conditioning_vector;
         this.k_reg = config.k_reg;
     }
 
-    call(inputs, kwargs){
-        let net = inputs;
-
-        this.cbn = new ConditionalBatchNorm({name:this.nm, cbn_idx:1,
-                                        conditioning_vector:this.conditioning_vector,
-                                        k_reg:this.k_reg});
-        net = this.cbn.apply(net);
-        net = tf.relu(net);
-
+    build(inputShape){
         let up_stride = (2, 2);
         if (this.is_last_block){
             up_stride = (2, 1);
         }
-
-        this.conv2dT1 = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(3, 3), strides:up_stride,
-                                                  kernelRegularizer:tf.regularizers.l2(),
-                                                  kernelInitializer:tf.initializers.randomNormal({mean:0.0,
-                                                                                                  stddev:1.0}),
-                                                  padding:'same', useBias:true});
-        net = this.conv2dT1.apply(net);
-
+        this.cbn = new ConditionalBatchNorm({name:this.nm, cbn_idx:1,
+                                             k_reg:this.k_reg});
+        this.conv2dT1 = tf.layers.conv2dTranspose({filters:this.output_dim,
+                                                   kernelSize:(3, 3), strides:up_stride,
+                                                   kernelRegularizer:tf.regularizers.l2(),
+                                                   kernelInitializer:
+                                                   tf.initializers.randomNormal({mean:0.0,
+                                                                                 stddev:1.0}),
+                                                   padding:'same', useBias:true});
         this.cbn2 = new ConditionalBatchNorm({name:this.nm, cbn_idx:2,
-                                         conditioning_vector:this.conditioning_vector,
-                                         k_reg:this.k_reg});
-        net = this.cbn2.apply(net);
-        net = tf.relu(net);
-        this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3), strides:(1, 1),
-                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                        kernelRegularizer:tf.regularizers.l2(), padding:'same', useBias:true});
-        net = this.conv2d.apply(net);
-
-        this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim, kernelSize:(1, 1), strides:up_stride,
-                                                   kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                              k_reg:this.k_reg});
+        this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3),
+                                        strides:(1, 1),
+                                        kernelInitializer:
+                                        tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        kernelRegularizer:tf.regularizers.l2(),
+                                        padding:'same', useBias:true});
+        this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim,
+                                                   kernelSize:(1, 1), strides:up_stride,
+                                                   kernelInitializer:
+                                                   tf.initializers.randomNormal({mean:0.0,
+                                                                                 stddev:1.0}),
                                                    kernelRegularizer:tf.regularizers.l2(),
                                                    padding:'same', useBias:true});
+    }
+
+    call(inputs, conditioning_vector, kwargs){
+        let net = inputs;
+
+        net = this.cbn.apply(net, conditioning_vector);
+        net = tf.relu(net);
+
+
+        net = this.conv2dT1.apply(net);
+
+        net = this.cbn2.apply(net, conditioning_vector);
+        net = tf.relu(net);
+        net = this.conv2d.apply(net);
+
         let shortcut = this.conv2dT2.apply(inputs);
         net = net.add(shortcut);
         return net;
@@ -101,19 +118,55 @@ class NonLocalBlock extends tf.layers.Layer{
     constructor(config){
         super({name:'NonLocalBlock' + '_' + config.name});
         this.k_reg = config.k_reg;
+        // let d = config.cbn_idx - 1 + parseInt(config.name.slice(-1)) - 1;
+        this.num_channels = 64;
+        // for (let i = 0; i < d; i ++){
+        //     this.num_channels /= 2;
+        // }
+        this.num_channels_attn = Math.floor(this.num_channels / 8);
+        this.num_channels_g = Math.floor(this.num_channels / 2);
+
     }
 
     build(input_shape){
-        // this.sigma = this.addWeight({name:"sigma",
-        //                              shape:[],
-        //                              initializer:'zeros',
-        //                              trainable:true});
         this.sigma = this.addWeight("sigma",
                                      [],
                                     'float32',
                                     tf.initializers.zeros(),
                                     undefined,
                                      true);
+        this.conv2d1 = tf.layers.conv2d({filters:this.num_channels_attn,
+                                       kernelSize:(1, 1), useBias:false,
+                                       strides:(1, 1),
+                                       padding:'same',
+                                       kernelInitializer:
+                                       tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                       kernelRegularizer:tf.regularizers.l2(),
+                                       name:"conv2d_1"});
+        this.conv2d2 = tf.layers.conv2d({filters:this.num_channels_attn,
+                                         kernelSize:(1, 1), useBias:false,
+                                         strides:(1, 1),
+                                         padding:'same',
+                                         kernelInitializer:
+                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         kernelIegularizer:tf.regularizers.l2(),
+                                         name:"conv2d_2"});
+        this.maxpool = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2});
+        this.conv2d3 = tf.layers.conv2d({filters:this.num_channels_g,
+                                         kernelSize:(1, 1), useBias:false,
+                                         strides:(1, 1),
+                                         padding:'same',
+                                         kernelInitializer:
+                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         kernelRegularizer:tf.regularizers.l2(),
+                                         name:"conv2d_3"});
+        this.conv2d4 = tf.layers.conv2d({filters:this.num_channels, kernelSize:(1, 1),
+                                         useBias:false, strides:(1, 1),
+                                         padding:'same',
+                                         kernelInitializer:
+                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         kernelRegularizer:tf.regularizers.l2(),
+                                         name:"conv2d_4"});
     }
 
     _spatial_flatten(inputs){
@@ -125,47 +178,26 @@ class NonLocalBlock extends tf.layers.Layer{
     call(input){
         let h = input.shape[1];
         let w = input.shape[2];
-        let num_channels = input.shape[3];
+        // let num_channels = input.shape[3];
 
-        let num_channels_attn = Math.floor(num_channels / 8);
-        let num_channels_g = Math.floor(num_channels / 2);
 
-        let theta = tf.layers.conv2d({filters:num_channels_attn, kernelSize:(1, 1), useBias:false,
-                                      strides:(1, 1),
-                                      padding:'same',
-                                      kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                      kernelRegularizer:tf.regularizers.l2(),
-                                      name:"conv2d_theta"}).apply(input);
+        let theta = this.conv2d1.apply(input);
         theta = this._spatial_flatten(theta);
 
-        let phi = tf.layers.conv2d({filters:num_channels_attn, kernelSize:(1, 1), useBias:false,
-                                    strides:(1, 1),
-                                    padding:'same',
-                                    kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                    kernelIegularizer:tf.regularizers.l2(),
-                                    name:"conv2d_phi"}).apply(input);
-        phi = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2}).apply(phi);
+        let phi = this.conv2d2.apply(input);
+        phi = this.maxpool.apply(phi);
         phi = this._spatial_flatten(phi);
 
         let attn = theta.matMul(phi, false, true);
         attn = attn.softmax();
 
-        let g = tf.layers.conv2d({filters:num_channels_g, kernelSize:(1, 1), useBias:false,
-                                  strides:(1, 1),
-                                  padding:'same',
-                                  kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                  kernelRegularizer:tf.regularizers.l2(),
-                                  name:"conv2d_g"}).apply(input);
+        let g = this.conv2d3.apply(input);
         g = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2}).apply(g);
         g = this._spatial_flatten(g);
 
         let attn_g = attn.matMul(g);
-        attn_g = attn_g.reshape([attn_g.shape[0], h, -1, num_channels_g]);
-        attn_g = tf.layers.conv2d({filters:num_channels, kernelSize:(1, 1), useBias:false, strides:(1, 1),
-                                padding:'same',
-                                   kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                kernelRegularizer:tf.regularizers.l2(),
-                                name:"conv2d_attn_g"}).apply(attn_g);
+        attn_g = attn_g.reshape([attn_g.shape[0], h, -1, this.num_channels_g]);
+        attn_g = this.conv2d4.apply(attn_g);
 
         let result = this.sigma.val.mul(attn_g).add(input);
         return result;
@@ -202,7 +234,7 @@ class SpatialEmbedding extends tf.layers.Layer{
         // return tf.gatherND(a, inputs);
         // let gat = tf.gatherND(this.kernel.val, inputs);
         let gat = tf.gather(this.kernel.val, inputs, 0);
-        gat = tf.expandDims(gat, 0);
+        // gat = tf.expandDims(gat, 0);
         return gat;
     }
 
@@ -223,13 +255,35 @@ class GeneratorPrep extends tf.layers.Layer{
         this.kernel_reg = config.kernel_reg;
         this.blocks_with_attention = config.blocks_with_attention;
         this.c = config.c;
+    }
+
+    build(input_shape){
+        this.spatial_embedding = new SpatialEmbedding({vocab_size:this.vocab_size, filter_dim:this.embed_y});
+        this.bn = tf.layers.batchNormalization();
+        this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
+                                        strides:(1, 1),
+                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        kernelRegularizer:tf.regularizers.l2(),
+                                        padding:'same'});
         this.B_list = [];
+        for (let block_idx = 0; block_idx < this.num_blocks; block_idx++){
+            let name = "B"+(block_idx + 1).toString();
+            let is_last_block = block_idx == this.num_blocks - 1;
+            let res = new ResNetBlockUp({name:name,
+                                         output_dim:this.out_channels[block_idx],
+                                         is_last_block:is_last_block,
+                                         k_reg:this.kernel_reg});
+            this.B_list.push(res);
+            if (this.blocks_with_attention.includes(name)){
+                let nlb = new NonLocalBlock({name:name, k_reg:this.kernel_reg});
+                this.B_list.push(nlb);
+            }
+        }
     }
 
     // call(z, y, num_blocks, vocab_size, embed_y, kwargs){
     call(inputs, kwargs){
 
-        this.spatial_embedding = new SpatialEmbedding({vocab_size:this.vocab_size, filter_dim:this.embed_y});
         let z = inputs[0];
         let y = inputs[1].asType('int32');
         // let se_layer = spatial_embedding.apply(this.y);
@@ -250,29 +304,27 @@ class GeneratorPrep extends tf.layers.Layer{
         net = net.reshape([net.shape[0], -1, 512, this.seed_size_h]);
         net = net.transpose([0, 3, 1, 2]);
 
+        let blist_idx = 0;
         for (let block_idx = 0; block_idx < this.num_blocks; block_idx++){
             let name = "B"+(block_idx + 1).toString();
             let is_last_block = block_idx == this.num_blocks - 1;
-            let res = new ResNetBlockUp({name:name, output_dim:this.out_channels[block_idx],
-                                     is_last_block:is_last_block,
-                                     conditioning_vector:z_per_block[block_idx],
-                                     k_reg:this.kernel_reg});
-            this.B_list.push(res);
-            net = res.apply(net);
+            // let res = new ResNetBlockUp({name:name,
+            //                                 output_dim:this.out_channels[block_idx],
+            //                                 is_last_block:is_last_block,
+            //                                 conditioning_vector:z_per_block[block_idx],
+            //                                 k_reg:this.kernel_reg});
+            let res = this.B_list[blist_idx];
+            blist_idx += 1;
+            net = res.apply(net, z_per_block[block_idx]);
             if (this.blocks_with_attention.includes(name)){
-                let nlb = new NonLocalBlock({name:name, k_reg:this.kernel_reg});
-                this.B_list.push(nlb);
+                // let nlb = new NonLocalBlock({name:name, k_reg:this.kernel_reg});
+                let nlb = this.B_list[blist_idx];
+                blist_idx += 1;
                 net = nlb.apply(net);
             }
         }
-        this.bn = tf.layers.batchNormalization();
         net = this.bn.apply(net);
         net = tf.relu(net);
-        this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
-                                        strides:(1, 1),
-                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
-                                        kernelRegularizer:tf.regularizers.l2(),
-                                        padding:'same'});
         net = this.conv2d.apply(net);
 
         net = tf.tanh(net);
@@ -321,23 +373,20 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
 
     return model;
 }
+
+
 function eval(seed, labels, g){
-    let res = g.apply([seed, labels]);
-    // let res = g.predict([seed, labels]);
-    console.log("Result!");
-    res.print();
+    // let res = g.apply([seed, labels]);
+    let res = g.predict([seed, labels]);
     res = res.add(1.0).div(2.0).mul(255);
     res = res.squeeze([0]).asType('int32');
     // res = tf.expandDims(res, 2);
     const printCanvas = document.getElementById("lala");
-    console.log(printCanvas);
     const image = tf.browser.toPixels(res, printCanvas);
-    console.log(res);
-    res.print();
 }
 
 let seed = tf.randomNormal([1, 128]);
-let labels = tf.tensor([0, 1, 2], undefined, 'int32');
+let labels = tf.tensor([[0, 1, 2]], undefined, 'int32');
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
 let sp_emb_kernel = null;
 
@@ -404,8 +453,7 @@ toload.map((fn) => {
 
 
 Promise.all(promises).then((v) => {
-    console.log("done promise!");
-    console.log(v);
+    let seed = tf.randomNormal([1, 128]);
     eval(seed, labels, g);
     let genPrep = g.layers[2];
     let B1 = genPrep.B_list[0];
@@ -451,17 +499,34 @@ Promise.all(promises).then((v) => {
     NLB.setWeights([v[s+1]]);
     genPrep.bn.setWeights([v[s+2], v[s+3], v[s+4], v[s+5]]);
     genPrep.conv2d.setWeights([v[s+6], v[s+7]]);
+
+    let start = Date.now();
+    let now = Date.now();
     eval(seed, labels, g);
+    now = Date.now();
+    console.log(now-start);
+    start = now;
+    seed = tf.randomNormal([1, 128]);
+    eval(seed, labels, g);
+    now = Date.now();
+    console.log(now-start);
+    start = now;
+    seed = tf.randomNormal([1, 128]);
+    eval(seed, labels, g);
+    now = Date.now();
+    console.log(now-start);
+    start = now;
+    seed = tf.randomNormal([1, 128]);
+    eval(seed, labels, g);
+    now = Date.now();
+    console.log(now-start);
+    start = now;
+    seed = tf.randomNormal([1, 128]);
+    eval(seed, labels, g);
+    now = Date.now();
+    console.log(now-start);
+    start = now;
 });
-
-
-// let npyLoaded = $.when(n);
-
-function loadnpy(li){
-    console.log(g.getWeights());
-    g.summary();
-    eval(seed, labels, g);
-};
 
 
 
