@@ -3,7 +3,6 @@ let n = new npyjs();
 class ConditionalBatchNorm extends tf.layers.Layer{
 
     constructor(config){
-        // super(ConditionalBatchNorm, self).__init__(name='CBN' + '_' + name + '_' + str(cbn_idx));
         super({name:'CBN_'+config.name+'_'+config.cbn_idx});
         this.conditioning_vector = config.conditioning_vector;
         this.k_reg = config.k_reg;
@@ -20,10 +19,10 @@ class ConditionalBatchNorm extends tf.layers.Layer{
         this.dense1 = tf.layers.dense({units:this.num_channels, useBias:false,
                                        activation:'linear',
                                        kernelRegularizer:tf.regularizers.l2({}),
-                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
+                                       kernelInitializer:tf.initializers.zeros()});
         this.dense2 = tf.layers.dense({units:this.num_channels, useBias:false,
                                        activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
-                                       kernelInitializer:tf.initializers.orthogonal({gain:1})});
+                                       kernelInitializer:tf.initializers.zeros()});
     }
 
     call(inputs, conditioning_vector, kwargs){
@@ -32,12 +31,10 @@ class ConditionalBatchNorm extends tf.layers.Layer{
         let gamma = this.dense1.apply(conditioning_vector);
         gamma = gamma.reshape([-1, 1, 1, this.num_channels]);
         gamma = tf.tile(gamma, [1, net.shape[1], net.shape[2], 1]);
-        // net *= gamma;
         net = net.mul(gamma);
 
         let beta = this.dense2.apply(conditioning_vector);
         beta = beta.reshape([-1, 1, 1, this.num_channels]);
-        // net += beta;
         net = net.add(beta);
         return net;
     }
@@ -69,22 +66,20 @@ class ResNetBlockUp extends tf.layers.Layer{
                                                    kernelSize:(3, 3), strides:up_stride,
                                                    kernelRegularizer:tf.regularizers.l2(),
                                                    kernelInitializer:
-                                                   tf.initializers.randomNormal({mean:0.0,
-                                                                                 stddev:1.0}),
+                                                   tf.initializers.zeros(),
                                                    padding:'same', useBias:true});
         this.cbn2 = new ConditionalBatchNorm({name:this.nm, cbn_idx:2,
                                               k_reg:this.k_reg});
         this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3),
                                         strides:(1, 1),
                                         kernelInitializer:
-                                        tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        tf.initializers.zeros(),
                                         kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same', useBias:true});
         this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim,
                                                    kernelSize:(1, 1), strides:up_stride,
                                                    kernelInitializer:
-                                                   tf.initializers.randomNormal({mean:0.0,
-                                                                                 stddev:1.0}),
+                                                   tf.initializers.zeros(),
                                                    kernelRegularizer:tf.regularizers.l2(),
                                                    padding:'same', useBias:true});
     }
@@ -118,11 +113,7 @@ class NonLocalBlock extends tf.layers.Layer{
     constructor(config){
         super({name:'NonLocalBlock' + '_' + config.name});
         this.k_reg = config.k_reg;
-        // let d = config.cbn_idx - 1 + parseInt(config.name.slice(-1)) - 1;
         this.num_channels = 64;
-        // for (let i = 0; i < d; i ++){
-        //     this.num_channels /= 2;
-        // }
         this.num_channels_attn = Math.floor(this.num_channels / 8);
         this.num_channels_g = Math.floor(this.num_channels / 2);
 
@@ -140,7 +131,7 @@ class NonLocalBlock extends tf.layers.Layer{
                                        strides:(1, 1),
                                        padding:'same',
                                        kernelInitializer:
-                                       tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                       tf.initializers.zeros(),
                                        kernelRegularizer:tf.regularizers.l2(),
                                        name:"conv2d_1"});
         this.conv2d2 = tf.layers.conv2d({filters:this.num_channels_attn,
@@ -148,7 +139,7 @@ class NonLocalBlock extends tf.layers.Layer{
                                          strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         tf.initializers.zeros(),
                                          kernelIegularizer:tf.regularizers.l2(),
                                          name:"conv2d_2"});
         this.maxpool = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2});
@@ -157,14 +148,14 @@ class NonLocalBlock extends tf.layers.Layer{
                                          strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_3"});
         this.conv2d4 = tf.layers.conv2d({filters:this.num_channels, kernelSize:(1, 1),
                                          useBias:false, strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                         tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_4"});
     }
@@ -178,7 +169,6 @@ class NonLocalBlock extends tf.layers.Layer{
     call(input){
         let h = input.shape[1];
         let w = input.shape[2];
-        // let num_channels = input.shape[3];
 
 
         let theta = this.conv2d1.apply(input);
@@ -229,12 +219,7 @@ class SpatialEmbedding extends tf.layers.Layer{
     }
 
     call(inputs, kwargs){
-        // this.invokeCallHook(inputs, kwargs);
-        // let a = tf.randomNormal([this.vocab_size, this.filter_dim[0], this.filter_dim[1]]);
-        // return tf.gatherND(a, inputs);
-        // let gat = tf.gatherND(this.kernel.val, inputs);
         let gat = tf.gather(this.kernel.val, inputs, 0);
-        // gat = tf.expandDims(gat, 0);
         return gat;
     }
 
@@ -262,7 +247,7 @@ class GeneratorPrep extends tf.layers.Layer{
         this.bn = tf.layers.batchNormalization();
         this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
                                         strides:(1, 1),
-                                        kernelInitializer:tf.initializers.randomNormal({mean:0.0, stddev:1.0}),
+                                        kernelInitializer:tf.initializers.zeros(),
                                         kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same'});
         this.B_list = [];
@@ -281,23 +266,18 @@ class GeneratorPrep extends tf.layers.Layer{
         }
     }
 
-    // call(z, y, num_blocks, vocab_size, embed_y, kwargs){
     call(inputs, kwargs){
 
         let z = inputs[0];
         let y = inputs[1].asType('int32');
-        // let se_layer = spatial_embedding.apply(this.y);
         let se_layer = this.spatial_embedding.apply(y);
 
         let z_per_block = tf.split(z, this.num_blocks + 1, 1);
         let z0 = z_per_block[0];
-        // z0 = tf.reshape(z0, (-1, 1, 1, z0.shape[1]));
         z0 = z0.reshape([-1, 1, 1, z0.shape[1]]);
 
-        // let net = tf.linalg.matmul(tf.tile(z0, [1, tf.shape(se_layer)[1], 1, 1]), se_layer);
         let net = tf.tile(z0, [1, se_layer.shape[1], 1, 1]);
         net = net.matMul(se_layer);
-        // net = se_layer.matMul(net);
         net = tf.squeeze(net, 2);
 
         net = net.reshape([net.shape[0], 512, this.seed_size_h, this.seed_size_w, -1]);
@@ -308,16 +288,10 @@ class GeneratorPrep extends tf.layers.Layer{
         for (let block_idx = 0; block_idx < this.num_blocks; block_idx++){
             let name = "B"+(block_idx + 1).toString();
             let is_last_block = block_idx == this.num_blocks - 1;
-            // let res = new ResNetBlockUp({name:name,
-            //                                 output_dim:this.out_channels[block_idx],
-            //                                 is_last_block:is_last_block,
-            //                                 conditioning_vector:z_per_block[block_idx],
-            //                                 k_reg:this.kernel_reg});
             let res = this.B_list[blist_idx];
             blist_idx += 1;
             net = res.apply(net, z_per_block[block_idx]);
             if (this.blocks_with_attention.includes(name)){
-                // let nlb = new NonLocalBlock({name:name, k_reg:this.kernel_reg});
                 let nlb = this.B_list[blist_idx];
                 blist_idx += 1;
                 net = nlb.apply(net);
@@ -345,7 +319,6 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
     let h = input_dim[0];
     let c = input_dim[2];
 
-    // in_channels, out_channels = get_in_out_channels_gen(h);
     let ch = 64;
     let in_channels = [ch*8, ch*4, ch*2];
     let out_channels = [ch*4, ch*2, ch*1];
@@ -365,30 +338,12 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
                                      c:c,
                                      embed_y:embed_y});
     let net = genPrep.apply([z, y]);
-    // let z_per_block = genPrep.z_per_block;
 
 
-    // model = tf.keras.Model([z, y], net);
     let model = tf.model({inputs:[z, y], outputs:net});
 
     return model;
 }
-
-
-function eval(seed, labels, g){
-    // let res = g.apply([seed, labels]);
-    let res = g.predict([seed, labels]);
-    res = res.add(1.0).div(2.0).mul(255);
-    res = res.squeeze([0]).asType('int32');
-    // res = tf.expandDims(res, 2);
-    const printCanvas = document.getElementById("lala");
-    const image = tf.browser.toPixels(res, printCanvas);
-}
-
-let seed = tf.randomNormal([1, 128]);
-let labels = tf.tensor([[0, 1, 2]], undefined, 'int32');
-let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
-let sp_emb_kernel = null;
 
 let toload = [
     "SpatialEmbedding_1-filter_bank.npy",
@@ -441,11 +396,40 @@ let toload = [
     "generatorPrep_batchNormalization-moving_variance.npy",
     "generatorPrep_cond2d-kernel.npy",
     "generatorPrep_cond2d-bias.npy"];
+
+function eval(seed, labels, g){
+    let res = g.predict([seed, labels]);
+    res = res.add(1.0).div(2.0).mul(255);
+    res = res.squeeze([0]).asType('int32');
+    const printCanvas = document.getElementById("lala");
+    const image = tf.browser.toPixels(res, printCanvas);
+}
+
+let seed = tf.randomNormal([1, 128]);
+
+function alpha2idx(text){
+    let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
+    let result = [];
+    for (let i = 0; i < text.length; i++){
+        result.push(alphav.indexOf(text[i]));
+    }
+    return result;
+}
+
+let txt = "dasulda";
+let da = alpha2idx(txt);
+let labels = tf.tensor([da], undefined, 'int32');
+let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
+let sp_emb_kernel = null;
+
 let loadednpy = {};
 let promises = [];
 
 toload.map((fn) => {
-    promises.push(n.load(fn).then(res => {
+    let fullPath = "weights/"+fn;
+    promises.push(n.load(fullPath).then(res => {
+        console.log("load");
+        console.log(fullPath);
         let t = tf.tensor(res.data, res.shape);
         return t;
     }));
@@ -508,24 +492,24 @@ Promise.all(promises).then((v) => {
     start = now;
     seed = tf.randomNormal([1, 128]);
     eval(seed, labels, g);
-    now = Date.now();
-    console.log(now-start);
-    start = now;
-    seed = tf.randomNormal([1, 128]);
-    eval(seed, labels, g);
-    now = Date.now();
-    console.log(now-start);
-    start = now;
-    seed = tf.randomNormal([1, 128]);
-    eval(seed, labels, g);
-    now = Date.now();
-    console.log(now-start);
-    start = now;
-    seed = tf.randomNormal([1, 128]);
-    eval(seed, labels, g);
-    now = Date.now();
-    console.log(now-start);
-    start = now;
+    // now = Date.now();
+    // console.log(now-start);
+    // start = now;
+    // seed = tf.randomNormal([1, 128]);
+    // eval(seed, labels, g);
+    // now = Date.now();
+    // console.log(now-start);
+    // start = now;
+    // seed = tf.randomNormal([1, 128]);
+    // eval(seed, labels, g);
+    // now = Date.now();
+    // console.log(now-start);
+    // start = now;
+    // seed = tf.randomNormal([1, 128]);
+    // eval(seed, labels, g);
+    // now = Date.now();
+    // console.log(now-start);
+    // start = now;
 });
 
 
