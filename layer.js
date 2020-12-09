@@ -397,16 +397,6 @@ let toload = [
     "generatorPrep_cond2d-kernel.npy",
     "generatorPrep_cond2d-bias.npy"];
 
-function eval(seed, labels, g){
-    let res = g.predict([seed, labels]);
-    res = res.add(1.0).div(2.0).mul(255);
-    res = res.squeeze([0]).asType('int32');
-    const printCanvas = document.getElementById("lala");
-    const image = tf.browser.toPixels(res, printCanvas);
-}
-
-let seed = tf.randomNormal([1, 128]);
-
 function alpha2idx(text){
     let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
     let result = [];
@@ -416,14 +406,11 @@ function alpha2idx(text){
     return result;
 }
 
-let txt = "dasulda";
-let da = alpha2idx(txt);
-let labels = tf.tensor([da], undefined, 'int32');
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
-let sp_emb_kernel = null;
-
-let loadednpy = {};
 let promises = [];
+g.isLoadedWeights = false;
+console.log("load weight ");
+console.log(g);
 
 toload.map((fn) => {
     let fullPath = "weights/"+fn;
@@ -438,13 +425,16 @@ toload.map((fn) => {
 
 Promise.all(promises).then((v) => {
     let seed = tf.randomNormal([1, 128]);
-    eval(seed, labels, g);
+    let labels = tf.tensor([[0]], undefined, 'int32');
+    let res = g.predict([seed, labels]);
+
     let genPrep = g.layers[2];
     let B1 = genPrep.B_list[0];
     let B2 = genPrep.B_list[1];
     let B3 = genPrep.B_list[2];
     let NLB = genPrep.B_list[3];
 
+    // Have to flush out the dead at least once
     genPrep.spatial_embedding.setWeights([v[0]]);
 
     B1.cbn.dense1.setWeights([v[1]]);
@@ -484,32 +474,7 @@ Promise.all(promises).then((v) => {
     genPrep.bn.setWeights([v[s+2], v[s+3], v[s+4], v[s+5]]);
     genPrep.conv2d.setWeights([v[s+6], v[s+7]]);
 
-    let start = Date.now();
-    let now = Date.now();
-    eval(seed, labels, g);
-    now = Date.now();
-    console.log(now-start);
-    start = now;
-    seed = tf.randomNormal([1, 128]);
-    eval(seed, labels, g);
-    // now = Date.now();
-    // console.log(now-start);
-    // start = now;
-    // seed = tf.randomNormal([1, 128]);
-    // eval(seed, labels, g);
-    // now = Date.now();
-    // console.log(now-start);
-    // start = now;
-    // seed = tf.randomNormal([1, 128]);
-    // eval(seed, labels, g);
-    // now = Date.now();
-    // console.log(now-start);
-    // start = now;
-    // seed = tf.randomNormal([1, 128]);
-    // eval(seed, labels, g);
-    // now = Date.now();
-    // console.log(now-start);
-    // start = now;
+    g.isLoadedWeights = true;
 });
 
 
