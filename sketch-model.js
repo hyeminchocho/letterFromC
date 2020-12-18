@@ -1,30 +1,71 @@
 let prev = 0;
 let curr = 0;
-let count = 120;
+let count = 32;
 let currCount = 0;
+
+let lineHeight = 32;
+let charWidth = 16;
+let pageLineHeight;
+let pageCharWidth;
+
+let numLinesPage = 37;
+let numCharLine;
+
 let loadimg;
+let wordShader;
+
+let buffer;
+let imagePage;
 
 function preload(){
+    wordShader = loadShader("assets/word.vert", "assets/word.frag");
 }
 
 function setup(){
-    createCanvas(200, 200);
+    createCanvas(windowWidth, windowHeight);
+    imagePage = createGraphics(2412, 3074);
+
+    pageLineHeight = imagePage.height / numLinesPage;
+    pageCharWidth = pageLineHeight * 0.5;
+    numCharLine = Math.ceil(imagePage.width/pageCharWidth);
+    console.log(imagePage.width);
+    console.log(pageCharWidth);
+    console.log(numCharLine);
+
+    buffer = createGraphics(numCharLine*pageCharWidth, pageLineHeight, WEBGL);
+    wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 }
 
+let c = 0;
 function draw(){
     if (curr - prev > 1 && currCount < count && g.isLoadedWeights){
-        background(155, 0, 155);
-        console.log("p4");
-        console.log(g.isLoadedWeights);
+        background(255);
 
-        let im = generateWord("kikikukuku");
-
-        image(im, 0, 0);
+        // drawWord("ippuniDASULDA", 5, 5);
+        // drawWord("dasuldaIPPUNI", 5, 5+pageLineHeight);
+        drawWord("distinctttttttttttttttttt", 5, 5+pageLineHeight*c);
+        c+=1;
 
         prev = curr;
         currCount += 1;
+
+        image(imagePage, 0, 0, width, height);
     }
     curr = millis();
+}
+
+function drawWord(txt, x, y){
+    let im = generateWord(txt);
+    let lengthRatio = txt.length / numCharLine;
+    console.log(lengthRatio);
+
+    buffer.background(255);
+    buffer.shader(wordShader);
+    wordShader.setUniform('lengthRatio', lengthRatio);
+    wordShader.setUniform('texture', im);
+    buffer.rect(0, 0, 5, 5);
+
+    imagePage.image(buffer, x, y);
 }
 
 function generateWord(txt){

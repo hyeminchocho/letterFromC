@@ -40,7 +40,8 @@ function handleRequest(req, res) {
   var typeExt = {
     '.html': 'text/html',
     '.js':   'text/javascript',
-    '.css':  'text/css'
+      '.css':  'text/css',
+      '.frag':  'text/glsl',
   };
 
   // What is it?  Default to plain text
@@ -53,6 +54,8 @@ function handleRequest(req, res) {
       // if there is an error
       if (err) {
         res.writeHead(500);
+          console.log("ERRRRRRR!");
+          console.log(err);
         return res.end('Error loading ' + pathname);
       }
       // Otherwise, send the data, the contents of the file
