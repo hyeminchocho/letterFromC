@@ -43,7 +43,7 @@ function draw(){
 
         // drawWord("ippuniDASULDA", 5, 5);
         // drawWord("dasuldaIPPUNI", 5, 5+pageLineHeight);
-        drawWord("distinctttttttttttttttttt", 5, 5+pageLineHeight*c);
+        drawWord("Flaucinaucinihilipilification", 5, 5+pageLineHeight*c);
         c+=1;
 
         prev = curr;
@@ -70,14 +70,40 @@ function drawWord(txt, x, y){
 
 function generateWord(txt){
     let da = alpha2idx(txt);
-    let seed = tf.randomNormal([1, 128]);
+    let seed = tf.randomNormal([1, 1, 32]);
+    seed = tf.tile(seed, [1, txt.length, 1]);
+    // let a = tf.randomNormal([1, 1, 32]);
+    // let b = tf.randomNormal([1, 1, 32]);
+    // let firstS = tf.tile(a, [1, txt.length-8, 1]);
+    // let seed = genLerpSeed(a, b, 8);
+    // seed = tf.concat([firstS, seed], 1);
+    let upperSeed = tf.randomNormal([1, 96]);
     let labels = tf.tensor([da], undefined, 'int32');
-    let res = g.predict([seed, labels]);
+    let res = g.predict([seed, upperSeed, labels]);
     res = res.add(1.0).div(2.0).mul(255);
     res = res.squeeze([0]).asType('int32');
     let alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
     res = tf.concat([res, res, res, alpha], 2);
     return tensor2image(res);
+}
+
+function genLerpSeed(a, b, length){
+    let alphaArr = tf.range(0, 1, 1/length);
+    alphaArr = tf.reshape(alphaArr, [1, length, 1]);
+    alphaArr = tf.tile(alphaArr, [1, 1, 32]);
+    console.log(alphaArr);
+
+    let ra = tf.reshape(a, [1, 1, 32]);
+    ra = tf.tile(a, [1, length, 1]);
+    let rb = tf.reshape(b, [1, 1, 32]);
+    rb = tf.tile(b, [1, length, 1]);
+    console.log(ra);
+    console.log(rb);
+    return rb.sub(ra).mul(alphaArr).add(ra);
+}
+
+function lerp(a, b, alpha){
+    return (b-a) * alpha + a;
 }
 
 function tensor2image(res){

@@ -268,16 +268,19 @@ class GeneratorPrep extends tf.layers.Layer{
 
     call(inputs, kwargs){
 
-        let z = inputs[0];
-        let y = inputs[1].asType('int32');
+        let z = inputs[0];  // First 32 latent dims lerp data
+        let x = inputs[1];  // 32 * 3 latent dims
+        let y = inputs[2].asType('int32');
         let se_layer = this.spatial_embedding.apply(y);
 
-        let z_per_block = tf.split(z, this.num_blocks + 1, 1);
-        let z0 = z_per_block[0];
-        z0 = z0.reshape([-1, 1, 1, z0.shape[1]]);
+        // let z_per_block = tf.split(z, this.num_blocks + 1, 2);
+        // let z0 = z_per_block[0];
+        let z0 = z.reshape([-1, z.shape[1], 1, z.shape[2]]);
 
-        let net = tf.tile(z0, [1, se_layer.shape[1], 1, 1]);
-        net = net.matMul(se_layer);
+        let x_per_block = tf.split(x, this.num_blocks, 1);
+
+        // let net = tf.tile(z0, [1, se_layer.shape[1], 1, 1]);
+        let net = z0.matMul(se_layer);
         net = tf.squeeze(net, 2);
 
         net = net.reshape([net.shape[0], 512, this.seed_size_h, this.seed_size_w, -1]);
@@ -290,7 +293,7 @@ class GeneratorPrep extends tf.layers.Layer{
             let is_last_block = block_idx == this.num_blocks - 1;
             let res = this.B_list[blist_idx];
             blist_idx += 1;
-            net = res.apply(net, z_per_block[block_idx]);
+            net = res.apply(net, x_per_block[block_idx]);
             if (this.blocks_with_attention.includes(name)){
                 let nlb = this.B_list[blist_idx];
                 blist_idx += 1;
@@ -327,7 +330,8 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
     let seed_size_h = Math.round(h / 2 ** num_blocks);
     let seed_size_w = seed_size_h;
 
-    let z = tf.input({shape:[latent_dim]});
+    let z = tf.input({shape:[null, latent_dim/(num_blocks+1)]});
+    let x = tf.input({shape:[latent_dim/(num_blocks+1)*num_blocks]});
     let y = tf.input({shape:[null], dtype:tf.int32});
 
     let genPrep = new GeneratorPrep({y:y, num_blocks:num_blocks, vocab_size:vocab_size,
@@ -337,10 +341,10 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
                                      blocks_with_attention:blocks_with_attention,
                                      c:c,
                                      embed_y:embed_y});
-    let net = genPrep.apply([z, y]);
+    let net = genPrep.apply([z, x, y]);
 
 
-    let model = tf.model({inputs:[z, y], outputs:net});
+    let model = tf.model({inputs:[z, x, y], outputs:net});
 
     return model;
 }
@@ -413,7 +417,11 @@ console.log("load weight ");
 console.log(g);
 
 toload.map((fn) => {
-    let fullPath = "weights/"+fn;
+    // let fullPath = "weights/"+fn;
+    // let fullPath = "mineWeights/"+fn;
+    // let fullPath = "mineWeights02/"+fn;
+    // let fullPath = "mineWeights03/"+fn;
+    let fullPath = "mineWeights04/"+fn;
     promises.push(n.load(fullPath).then(res => {
         console.log("load");
         console.log(fullPath);
@@ -424,11 +432,12 @@ toload.map((fn) => {
 
 
 Promise.all(promises).then((v) => {
-    let seed = tf.randomNormal([1, 128]);
+    let seed = tf.randomNormal([1, 1, 32]);
+    let upperSeed = tf.randomNormal([1, 96]);
     let labels = tf.tensor([[0]], undefined, 'int32');
-    let res = g.predict([seed, labels]);
+    let res = g.predict([seed, upperSeed, labels]);
 
-    let genPrep = g.layers[2];
+    let genPrep = g.layers[3];
     let B1 = genPrep.B_list[0];
     let B2 = genPrep.B_list[1];
     let B3 = genPrep.B_list[2];
