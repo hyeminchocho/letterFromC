@@ -3,6 +3,10 @@ self.importScripts('npy.js');
 self.importScripts('layer.js');
 
 self.onmessage = function(event) {
+    if (event.data == null){
+        self.postMessage([g.isLoadedWeights]);
+        return;
+    }
     // function generateWord(txt){
     let idx = event.data[0];
     let txt = event.data[1];

@@ -26,11 +26,16 @@ let upperSeed = tf.randomNormal([1, 96]);
 let minVal = 255;
 
 let worker = new Worker('worker.js');
+let isLoadedWeights = false;
 let workerResult = null;
 worker.onmessage = function(event){
-    let res = event.data[0];
-    let idx = event.data[1];
-    workerResult[idx] = res;
+    if (event.data.length == 1){
+        isLoadedWeights = event.data[0];
+    } else {
+        let res = event.data[0];
+        let idx = event.data[1];
+        workerResult[idx] = res;
+    }
 };
 
 let pageText = [
@@ -40,16 +45,16 @@ let pageText = [
     "please forgive me for not being more responsive",
     "hope you dont think I dont care about you",
     "I think a lot about you",
-    // "",
-    // "I know there are many ways I can reach out to you",
-    // "annyeong",
-    // "hey",
-    // "nihao",
-    // "yet nothing is quite right",
-    // "nothing is quite what I need to say",
-    // "",
-    // "it truly is blessed to be able to say hooray in a thousand different ways",
-    // ""
+    "",
+    "I know there are many ways I can reach out to you",
+    "annyeong",
+    "hey",
+    "nihao",
+    "yet nothing is quite right",
+    "nothing is quite what I need to say",
+    "",
+    "it truly is blessed to be able to say hooray in a thousand different ways",
+    ""
 ];
 
 function preload(){
@@ -72,7 +77,10 @@ function setup(){
 function draw(){
     background(255);
     // if (curr_t - prev_t > 3000 && currCount < pageText.length && g.isLoadedWeights && !isBusy){
-    if (curr_t - prev_t > 1 && currCount < pageText.length){
+    if (!isLoadedWeights){
+        worker.postMessage(null);
+    }
+    if (curr_t - prev_t > 1 && currCount < pageText.length && isLoadedWeights){
 
         let line = pageText[currCount];
         let numWords = split(line, " ").length;
