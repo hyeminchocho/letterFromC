@@ -18,7 +18,7 @@ void main() {
 
 
   // float alpha = smoothstep(0.07, 0.47, (1.0-col.r));
-  float alpha = (1.0-col.r)/minVal*0.93;
+  float alpha = (1.0-col.r)/minVal*0.9;
   // float alpha = smoothstep(0.1, 0.8, (1.0-col.r));
   // alpha = 1.0;
   // alpha = alpha * 1.2;

@@ -1,8 +1,11 @@
 let count = 1;
-let currCount = 0;
+let lineIdx = 0;
 
 let lineHeight = 32;
 let charWidth = 16;
+let topPadding = 5;
+let leftPadding = 5;
+
 let pageLineHeight;
 let pageCharWidth;
 
@@ -38,6 +41,7 @@ worker.onmessage = function(event){
     }
 };
 
+let randFontLines = [];
 let pageText = [
     "Dear hyemin",
     "",
@@ -62,54 +66,69 @@ function preload(){
 }
 
 function setup(){
+    setAttributes('antialias', true);
     createCanvas(windowWidth, windowHeight);
-    imagePage = createGraphics(windowWidth, windowHeight);
-
-    pageLineHeight = imagePage.height / numLinesPage;
+    imagePage = [createGraphics(windowWidth, windowHeight),
+                 createGraphics(windowWidth, windowHeight)];
+    pageLineHeight = (imagePage[0].height-2*topPadding) / (numLinesPage+1);
     pageCharWidth = pageLineHeight * 0.5;
-    numCharLine = Math.ceil(imagePage.width/pageCharWidth);
+    numCharLine = Math.ceil(imagePage[0].width/pageCharWidth);
 
     buffer = createGraphics(numCharLine*pageCharWidth, pageLineHeight, WEBGL);
     wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 
+    // Add script
+    addHoorayScript();
+    console.log(pageText);
 }
 
 function draw(){
     background(255);
-    // if (curr_t - prev_t > 3000 && currCount < pageText.length && g.isLoadedWeights && !isBusy){
     if (!isLoadedWeights){
         worker.postMessage(null);
     }
-    if (curr_t - prev_t > 1 && currCount < pageText.length && isLoadedWeights){
+    if (curr_t - prev_t > 1 && lineIdx < pageText.length && isLoadedWeights){
 
-        let line = pageText[currCount];
+        let line = pageText[lineIdx];
         let numWords = split(line, " ").length;
         if (!isBusy){
             isBusy = true;
-            prepareLine(line);
+            prepareLine(lineIdx);
         }
         if (workerResult.length >= numWords || line == ""){
-            drawLine(line, 5, 5+pageLineHeight*currCount);
+            if (cursorIdx >= numLinesPage){
+                addNewLastLine();
+            }
+            drawLine(line, leftPadding,
+                     topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1));
 
             prev_t = curr_t;
-            currCount += 1;
+            lineIdx += 1;
+            if (cursorIdx < numLinesPage){
+                cursorIdx += 1;
+            }
             isBusy = false;
         }
 
     }
-    image(imagePage, 0, 0, windowWidth, windowHeight);
+    image(imagePage[0], 0, 0, windowWidth, windowHeight);
     drawCursor();
     curr_t = millis();
 }
 
-function prepareLine(txt){
+function prepareLine(lineIdx){
+    let txt = pageText[lineIdx];
     workerResult = [];
     if (txt == "" || txt == " "){
         return;
     }
     let txtSplit = split(txt, " ");
     for (let i = 0; i < txtSplit.length; i++){
-        worker.postMessage([i, txtSplit[i], fontSeed.dataSync(), upperSeed.dataSync()]);
+        if (randFontLines.includes(lineIdx)){
+            worker.postMessage([i, txtSplit[i], null, null]);
+        } else {
+            worker.postMessage([i, txtSplit[i], fontSeed.dataSync(), upperSeed.dataSync()]);
+        }
     }
 }
 
@@ -137,14 +156,14 @@ function drawWord(imArr, shape, txt, x, y){
     let im = typedArray2image(imArr, shape);
     let lengthRatio = txt.length / numCharLine;
 
-    buffer.background(255);
+    buffer.background(255, 255, 255, 255);
     buffer.shader(wordShader);
     wordShader.setUniform('lengthRatio', lengthRatio);
     wordShader.setUniform('minVal', minVal/255);
     wordShader.setUniform('texture', im);
     buffer.rect(0, 0, 5, 5);
 
-    imagePage.image(buffer, x, y);
+    imagePage[0].image(buffer, x, y);
 }
 
 function generateWord(txt){
@@ -211,6 +230,42 @@ function tensor2image(res){
 function drawCursor(){
     if (floor((curr_t-prev_t)/1500) % 2 == 0){
         fill(0, 0, 0);
-        rect(10, 10+pageLineHeight*currCount, pageCharWidth, pageLineHeight);
+        rect(leftPadding, topPadding+pageLineHeight*cursorIdx, pageCharWidth, pageLineHeight);
+    }
+}
+
+function addNewLastLine(){
+    let buf01 = imagePage[0];
+    let buf02 = imagePage[1];
+    buf02.background(255);
+    buf02.image(buf01, 0, -pageLineHeight);
+    imagePage = [buf02, buf01];
+}
+
+// -------- Coreo functions ---------
+function addHoorayScript(){
+    let numHooray = 1000;
+    let hoorPerLine = Math.floor(numCharLine / "hooray ".length);
+    let currNum = 0;
+    let fullLine = "";
+    for (let i = 0; i < hoorPerLine; i++){
+        fullLine = fullLine.concat("hooray ");
+    }
+    fullLine = fullLine.slice(0, -1);
+    while (currNum < numHooray){
+        if ((currNum + hoorPerLine) < numHooray){
+            pageText.push(fullLine);
+            currNum += hoorPerLine;
+        } else {
+            let lastHoor = numHooray - currNum;
+            let line = "";
+            for (let i = 0; i < lastHoor; i++){
+                line = line.concat("hooray ");
+            }
+            line = line.slice(0, -1);
+            pageText.push(line);
+            currNum += lastHoor;
+        }
+        randFontLines.push(pageText.length-1);
     }
 }
