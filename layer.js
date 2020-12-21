@@ -56,9 +56,9 @@ class ResNetBlockUp extends tf.layers.Layer{
     }
 
     build(inputShape){
-        let up_stride = (2, 2);
+        let up_stride = [2, 2];
         if (this.is_last_block){
-            up_stride = (2, 1);
+            up_stride = [2, 1];
         }
         this.cbn = new ConditionalBatchNorm({name:this.nm, cbn_idx:1,
                                              k_reg:this.k_reg});
@@ -309,7 +309,7 @@ class GeneratorPrep extends tf.layers.Layer{
     }
 
     computeOutputShape(inputShape){
-        return [1, 16, 16*inputShape[1][0], 1];
+        return [1, 32, 16*inputShape[1][0], 1];
     }
 
     getClassName() { return 'GeneratorPrep';}
@@ -399,7 +399,9 @@ let toload = [
     "generatorPrep_batchNormalization-moving_mean.npy",
     "generatorPrep_batchNormalization-moving_variance.npy",
     "generatorPrep_cond2d-kernel.npy",
-    "generatorPrep_cond2d-bias.npy"];
+    "generatorPrep_cond2d-bias.npy",
+    // "font-00066.npy"
+];
 
 function alpha2idx(text){
     let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
@@ -424,7 +426,6 @@ toload.map((fn) => {
     // let fullPath = "mineWeights04/"+fn;
     let fullPath = "mineWeights05/"+fn;
     promises.push(n.load(fullPath).then(res => {
-        console.log("load");
         console.log(fullPath);
         let t = tf.tensor(res.data, res.shape);
         return t;

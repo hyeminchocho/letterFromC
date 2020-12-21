@@ -269,7 +269,7 @@ function typedArray2image(res, shape){
     im.loadPixels();
     let upix = Uint8ClampedArray.from(res);
     for (let idx = 0; idx < im.pixels.length; idx++){
-        im.pixels[idx] = upix[idx];
+        im.pixels[idx] = res[idx];
         if (upix[idx] < minVal){
             minVal = upix[idx];
         }
@@ -321,7 +321,7 @@ function parseImageLine(line){
 function addHoorayFrames(){
     let lines = [];
     let mode = 0;
-    let dl = 100;
+    let dl = 300;
     for (let i = 0; i < 76; i++){
         let li = "$" + "Hooray/" + nf(i, 6) + "/" +
             mode.toString() + "/" + dl.toString();
@@ -341,7 +341,7 @@ function addAnnyeongFrames(){
     let dl;
     for (let i = 0; i < numLinesPage; i++){
         let mode = i;
-        dl = 150;
+        dl = 100;
         let li = "$" + "Annyeong" + "/" + nf(0, 6) + "/" +
             mode.toString() + "/"+ dl.toString();
         lines.push(li);
@@ -364,7 +364,7 @@ function addAnnyeongFrames(){
 }
 
 function addHoorayScript(){
-    let numHooray = 1000;
+    let numHooray = 50;
     let hoorPerLine = Math.floor(numCharLine / "hooray ".length);
     let currNum = 0;
     let fullLine = "";
