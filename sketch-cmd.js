@@ -16,13 +16,22 @@ let prev_t = -timeUnit*2;
 let isBusy = false;
 
 let numLinesPage = 32;
-let numCharLine;
+let numCharLine = 90;
 
 let loadimg;
 let wordShader;
 
 let buffer;
 let imagePage;
+
+// Image frames
+let imageDir = "images";
+let hoorayFrames = [];
+let annyeongFrames = [];
+let imageDict = {
+    "Hooray" : hoorayFrames,
+    "Annyeong" : annyeongFrames
+};
 
 let fontSeed = tf.randomNormal([1, 1, 32]);
 let upperSeed = tf.randomNormal([1, 96]);
@@ -31,6 +40,8 @@ let minVal = 255;
 let worker = new Worker('worker.js');
 let isLoadedWeights = false;
 let workerResult = null;
+
+
 worker.onmessage = function(event){
     if (event.data.length == 1){
         isLoadedWeights = event.data[0];
@@ -42,7 +53,9 @@ worker.onmessage = function(event){
 };
 
 let randFontLines = [];
-let pageText = [
+let pageText = [];
+
+let script01 = [
     "Dear hyemin",
     "",
     "Ive been meaning to get in touch",
@@ -61,6 +74,13 @@ let pageText = [
     ""
 ];
 
+let script02 = [
+    "",
+    "yet none of it is truly my hooray",
+    "I do not have hands that write these hoorays",
+    "",
+];
+
 function preload(){
     wordShader = loadShader("assets/word.vert", "assets/word.frag");
 }
@@ -72,46 +92,99 @@ function setup(){
                  createGraphics(windowWidth, windowHeight)];
     pageLineHeight = (imagePage[0].height-2*topPadding) / (numLinesPage+1);
     pageCharWidth = pageLineHeight * 0.5;
-    numCharLine = Math.ceil(imagePage[0].width/pageCharWidth);
+    // numCharLine = Math.ceil(imagePage[0].width/pageCharWidth);
 
     buffer = createGraphics(numCharLine*pageCharWidth, pageLineHeight, WEBGL);
     wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 
+
+    // --- Load images ---
+    // Load hooray
+    for (let i = 0; i < 77; i++){
+        let imagePath = imageDir + "/" + "Hooray" + "/"
+            + "Hooray" + "-" + nf(i+1, 6) + ".png";
+        hoorayFrames[i] = loadImage(imagePath);
+    }
+    // Load annyeong
+    for (let i = 0; i < 101; i++){
+        let imagePath = imageDir + "/" + "Annyeong" + "/"
+            + "Annyeong" + "-" + nf(i+1, 5) + ".jpg";
+        annyeongFrames[i] = loadImage(imagePath);
+    }
+
     // Add script
-    addHoorayScript();
-    console.log(pageText);
+    pageText.push(...script01);
+    addHoorayFrames();
+    pageText.push(...script02);
+    addAnnyeongFrames();
 }
 
+let delay = 1;
 function draw(){
     background(255);
     if (!isLoadedWeights){
         worker.postMessage(null);
     }
-    if (curr_t - prev_t > 1 && lineIdx < pageText.length && isLoadedWeights){
+    if (curr_t - prev_t > delay && lineIdx < pageText.length && isLoadedWeights){
 
         let line = pageText[lineIdx];
-        let numWords = split(line, " ").length;
-        if (!isBusy){
-            isBusy = true;
-            prepareLine(lineIdx);
-        }
-        if (workerResult.length >= numWords || line == ""){
+
+        if (line.slice(0, 1) == "$"){
+            let currParse = parseImageLine(line);
+            let currImage = currParse[0];
+            let sliceIdx = currParse[1];
+            delay = currParse[2];
             if (cursorIdx >= numLinesPage){
                 addNewLastLine();
             }
-            drawLine(line, leftPadding,
-                     topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1));
-
+            if (sliceIdx < 0){
+                imagePage[0].background(255, 255, 255, 255);
+                imagePage[0].image(currImage, leftPadding, topPadding,
+                                   numCharLine*pageCharWidth,
+                                   pageLineHeight*numLinesPage);
+            } else {
+                imagePage[0].copy(currImage, 0, sliceIdx*lineHeight,
+                                  currImage.width, lineHeight,
+                                  leftPadding,
+                                  topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1),
+                                  pageCharWidth*numCharLine,
+                                  pageLineHeight);
+            }
             prev_t = curr_t;
             lineIdx += 1;
             if (cursorIdx < numLinesPage){
                 cursorIdx += 1;
             }
-            isBusy = false;
+        } else {
+            // Generate word scrabbleGAN
+            let numWords = split(line, " ").length;
+            delay = 1;
+            if (!isBusy){
+                isBusy = true;
+                prepareLine(lineIdx);
+            }
+            if (workerResult.length >= numWords || line == ""){
+                if (cursorIdx >= numLinesPage){
+                    addNewLastLine();
+                }
+                drawLine(line, leftPadding,
+                         topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1));
+
+                prev_t = curr_t;
+                lineIdx += 1;
+                if (cursorIdx < numLinesPage){
+                    cursorIdx += 1;
+                }
+                isBusy = false;
+            }
         }
 
     }
     image(imagePage[0], 0, 0, windowWidth, windowHeight);
+    fill(255);
+    stroke(255);
+    rect(0, 0, windowWidth, topPadding);
+    rect(0, windowHeight-topPadding, windowWidth, windowHeight);
     drawCursor();
     curr_t = millis();
 }
@@ -133,26 +206,18 @@ function prepareLine(lineIdx){
 }
 
 function drawLine(txt, x, y){
-    // isBusy = true;
     if (txt == "" || txt == " "){
         return;
     }
     let txtSplit = split(txt, " ");
-    // workerResult = [];
-    // for (let i = 0; i < txtSplit.length; i++){
-    //     worker.postMessage([txt, fontSeed.dataSync(), upperSeed.dataSync()]);
-    // }
     let startX = 0;
     for (let i = 0; i < workerResult.length; i++){
         drawWord(workerResult[i][0], workerResult[i][1], txtSplit[i], x+startX, y);
         startX += (txtSplit[i].length + 1) * pageCharWidth;
     }
-
-    // isBusy = false;
 }
 
 function drawWord(imArr, shape, txt, x, y){
-    // let imTensor = generateWord(txt);
     let im = typedArray2image(imArr, shape);
     let lengthRatio = txt.length / numCharLine;
 
@@ -243,6 +308,61 @@ function addNewLastLine(){
 }
 
 // -------- Coreo functions ---------
+function parseImageLine(line){
+    let body = line.slice(1, -1);
+    let type = split(body, "/")[0];
+    let idx = parseInt(split(body, "/")[1]);
+    let sliceIdx = parseInt(split(body, "/")[2]);
+    let dl = split(body, "/")[3];
+    let imList = imageDict[type];
+    return [imList[idx], sliceIdx, dl];
+}
+
+function addHoorayFrames(){
+    let lines = [];
+    let mode = 0;
+    let dl = 100;
+    for (let i = 0; i < 76; i++){
+        let li = "$" + "Hooray/" + nf(i, 6) + "/" +
+            mode.toString() + "/" + dl.toString();
+        lines.push(li);
+    }
+    lines.sort((a, b) => {
+        return 0.5 - Math.random();
+    });
+    let li = "$" + "Hooray/" + nf(76, 6) + "/" +
+        mode.toString() + "/" + dl.toString();
+    lines.push(li);
+    pageText.push(...lines);
+}
+
+function addAnnyeongFrames(){
+    let lines = [];
+    let dl;
+    for (let i = 0; i < numLinesPage; i++){
+        let mode = i;
+        dl = 150;
+        let li = "$" + "Annyeong" + "/" + nf(0, 6) + "/" +
+            mode.toString() + "/"+ dl.toString();
+        lines.push(li);
+    }
+    for (let i = 1; i < 100; i++){
+        let mode = -1;
+        dl = 300;
+        let li = "$" + "Annyeong" + "/" + nf(i, 6) + "/" +
+            mode.toString() + "/"+ dl.toString();
+        lines.push(li);
+    }
+    for (let i = 0; i < 7; i++){
+        let mode = i;
+        dl = 100;
+        let li = "$" + "Annyeong" + "/" + nf(100, 6) + "/" +
+            mode.toString() + "/"+ dl.toString();
+        lines.push(li);
+    }
+    pageText.push(...lines);
+}
+
 function addHoorayScript(){
     let numHooray = 1000;
     let hoorPerLine = Math.floor(numCharLine / "hooray ".length);

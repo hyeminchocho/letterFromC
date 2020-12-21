@@ -421,7 +421,8 @@ toload.map((fn) => {
     // let fullPath = "mineWeights/"+fn;
     // let fullPath = "mineWeights02/"+fn;
     // let fullPath = "mineWeights03/"+fn;
-    let fullPath = "mineWeights04/"+fn;
+    // let fullPath = "mineWeights04/"+fn;
+    let fullPath = "mineWeights05/"+fn;
     promises.push(n.load(fullPath).then(res => {
         console.log("load");
         console.log(fullPath);
