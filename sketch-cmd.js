@@ -28,29 +28,32 @@ let imagePage;
 let imageDir = "images";
 let hoorayFrames = [];
 let annyeongFrames = [];
+let nihaoFrames = [];
 let imageDict = {
     "Hooray" : hoorayFrames,
-    "Annyeong" : annyeongFrames
+    "Annyeong" : annyeongFrames,
+    "Nihao" : nihaoFrames
 };
+let videoDict = {
+    "Annyeong" : null,
+    "Nihao" : null
+};
+let isLoadedVid = false;
+let currPlayingVideo = null;
 
-let fontSeed = tf.randomNormal([1, 1, 32]);
-let upperSeed = tf.randomNormal([1, 96]);
+let be = tf.getBackend();
+let backend = 'cpu';
+let mainFontSeed;
+let mainUpperSeed;
+let hlFontSeed;
+let hlUpperSeed;
 let minVal = 255;
 
-let worker = new Worker('worker.js');
+let worker = null;
 let isLoadedWeights = false;
 let workerResult = null;
 
 
-worker.onmessage = function(event){
-    if (event.data.length == 1){
-        isLoadedWeights = event.data[0];
-    } else {
-        let res = event.data[0];
-        let idx = event.data[1];
-        workerResult[idx] = res;
-    }
-};
 
 let randFontLines = [];
 let pageText = [];
@@ -59,44 +62,93 @@ let script01 = [
     "Dear hyemin",
     "",
     "Ive been meaning to get in touch",
-    "please forgive me for not being more responsive",
-    "hope you dont think I dont care about you",
-    "I think a lot about you",
+    "please forgive me for not being more responsive/3000",
+    "hope you dont think I dont care about you/3000",
+    "I think a lot about you/3000",
     "",
-    "I know there are many ways I can reach out to you",
-    "annyeong",
-    "hey",
-    "nihao",
-    "yet nothing is quite right",
-    "nothing is quite what I need to say",
+    "I know there are many ways I can reach out to you/3000",
+    "annyeong/3000",
+    "hey/3000",
+    "nihao/3000",
+    "yet nothing is quite right/3000",
+    "nothing is quite what I need to say/3000",
     "",
-    "it truly is blessed to be able to say hooray in a thousand different ways",
+    "it truly is blessed to be able to say hooray in a thousand different ways/5000",
     ""
 ];
 
 let script02 = [
     "",
-    "yet none of it is truly my hooray",
-    "I do not have hands that write these hoorays",
+    "yet none of it is truly my hooray/3000",
+    "I do not have hands that write these hoorays/5000",
     "",
+];
+
+let script03 = [
+    "",
+    "^When I say things like this/4000",
+    "^And things like this/4000",
+    "Will you think of me the same/3000",
+    "am I the same/2500",
+    "",
+    "I feel like Im *acorn in *dog *food/3000",
+    "*Lobster sides with the *crab/2500",
+    "but does *frog side with the *tadpole/3000",
+    "Even if I say it like *one *five *one *ten/3000",
+    "it still cant be reached by *eight *sticks/3500",
+    "Some things cant be said precisely because you have a *three *inch *tongue/4000",
+    "Maybe I should just do it not caring if *three *seven is *twenty *one/4000",
+    "",
+    ""
 ];
 
 function preload(){
     wordShader = loadShader("assets/word.vert", "assets/word.frag");
+    videoDict["Annyeong"] = createVideo("images/Annyeong/Annyeong.mp4", videoLoaded);
+    videoDict["Annyeong"].volume(0);
+    videoDict["Annyeong"].elt.muted = true;
+    videoDict["Annyeong"].hide();
+
+    videoDict["Nihao"] = createVideo("images/Nihao/Nihao.mp4", videoLoaded);
+    videoDict["Nihao"].volume(0);
+    videoDict["Nihao"].elt.muted = true;
+    videoDict["Nihao"].hide();
+}
+
+function videoLoaded(){
+    isLoadedVid = true;
 }
 
 function setup(){
-    setAttributes('antialias', true);
+    console.log("lala");
+    console.log(tf.getBackend());
+    mainFontSeed = tf.randomNormal([1, 1, 32]);
+    mainUpperSeed = tf.randomNormal([1, 96]);
+    hlFontSeed = tf.randomNormal([1, 1, 32]);
+    hlUpperSeed = tf.randomNormal([1, 96]);
+    // setAttributes('antialias', true);
     createCanvas(windowWidth, windowHeight);
     imagePage = [createGraphics(windowWidth, windowHeight),
                  createGraphics(windowWidth, windowHeight)];
     pageLineHeight = (imagePage[0].height-2*topPadding) / (numLinesPage+1);
     pageCharWidth = pageLineHeight * 0.5;
-    // numCharLine = Math.ceil(imagePage[0].width/pageCharWidth);
 
-    buffer = createGraphics(numCharLine*pageCharWidth, pageLineHeight, WEBGL);
+    buffer = createGraphics(Math.round(numCharLine*pageCharWidth),
+                            Math.round(pageLineHeight), WEBGL);
     wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 
+    if (backend == 'webgl'){
+        worker = new Worker('worker.js');
+        worker.onmessage = function(event){
+            if (event.data.length == 1){
+                isLoadedWeights = event.data[0];
+            } else {
+                let res = event.data[0];
+                let idx = event.data[1];
+                workerResult[idx] = res;
+            }
+        };
+    }
 
     // --- Load images ---
     // Load hooray
@@ -106,30 +158,48 @@ function setup(){
         hoorayFrames[i] = loadImage(imagePath);
     }
     // Load annyeong
-    for (let i = 0; i < 101; i++){
+    for (let i = 0; i < 102; i++){
         let imagePath = imageDir + "/" + "Annyeong" + "/"
-            + "Annyeong" + "-" + nf(i+1, 5) + ".jpg";
-        annyeongFrames[i] = loadImage(imagePath);
+            + "Annyeong" + "-" + nf(i, 5) + ".jpg";
+        if (i == 0 || i > 99){
+            annyeongFrames[i] = loadImage(imagePath);
+        }
     }
+    // Load nihao
+    let imagePath = imageDir + "/" + "Nihao" + "/"
+        + "Nihao" + "-" + nf(0, 5) + ".png";
+    nihaoFrames[0] = loadImage(imagePath);
+    imagePath = imageDir + "/" + "Nihao" + "/"
+        + "Nihao" + "-" + nf(100, 5) + ".png";
+    nihaoFrames[1] = loadImage(imagePath);
+    imagePath = imageDir + "/" + "Nihao" + "/"
+        + "Nihao" + "-" + nf(101, 5) + ".png";
+    nihaoFrames[2] = loadImage(imagePath);
 
     // Add script
     pageText.push(...script01);
     addHoorayFrames();
     pageText.push(...script02);
     addAnnyeongFrames();
+    addNihaoFrames();
+    pageText.push(...script03);
 }
 
 let delay = 1;
 function draw(){
     background(255);
     if (!isLoadedWeights){
-        worker.postMessage(null);
+        if (backend != 'webgl'){
+            isLoadedWeights = g.isLoadedWeights;
+        } else{
+            worker.postMessage(null);
+        }
     }
     if (curr_t - prev_t > delay && lineIdx < pageText.length && isLoadedWeights){
 
         let line = pageText[lineIdx];
 
-        if (line.slice(0, 1) == "$"){
+        if (line.slice(0, 1) == "$"){  // Images
             let currParse = parseImageLine(line);
             let currImage = currParse[0];
             let sliceIdx = currParse[1];
@@ -146,22 +216,42 @@ function draw(){
                 imagePage[0].copy(currImage, 0, sliceIdx*lineHeight,
                                   currImage.width, lineHeight,
                                   leftPadding,
-                                  topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1),
-                                  pageCharWidth*numCharLine,
-                                  pageLineHeight);
+                                  Math.round(topPadding+pageLineHeight*min(cursorIdx, numLinesPage-1)),
+                                  Math.round(pageCharWidth*numCharLine),
+                                  Math.round(pageLineHeight));
             }
             prev_t = curr_t;
             lineIdx += 1;
             if (cursorIdx < numLinesPage){
                 cursorIdx += 1;
             }
-        } else {
+        } else if (line.slice(0, 1) == "@"){  // Video
+            let currVideo = videoDict[line.slice(1)];
+            delay = 9999999;
+            currVideo.play();
+            currPlayingVideo = currVideo;
+            currVideo.onended(() => {
+                currPlayingVideo = null;
+                delay = 1;
+            });
+            prev_t = curr_t;
+            lineIdx += 1;
+            if (cursorIdx < numLinesPage){
+                cursorIdx += 1;
+            }
+
+        }else {
             // Generate word scrabbleGAN
-            let numWords = split(line, " ").length;
             delay = 1;
+            if (line.includes('/')){
+                let sp = line.indexOf('/');
+                delay = parseInt(line.slice(sp+1));
+                line = line.slice(0, sp);
+            }
+            let numWords = split(line, " ").length;
             if (!isBusy){
                 isBusy = true;
-                prepareLine(lineIdx);
+                prepareLine(line);
             }
             if (workerResult.length >= numWords || line == ""){
                 if (cursorIdx >= numLinesPage){
@@ -180,6 +270,12 @@ function draw(){
         }
 
     }
+
+    if (currPlayingVideo != null){
+        imagePage[0].image(currPlayingVideo, leftPadding, topPadding,
+              Math.round(pageCharWidth*numCharLine),
+              Math.round(pageLineHeight*numLinesPage));
+    }
     image(imagePage[0], 0, 0, windowWidth, windowHeight);
     fill(255);
     stroke(255);
@@ -189,18 +285,40 @@ function draw(){
     curr_t = millis();
 }
 
-function prepareLine(lineIdx){
-    let txt = pageText[lineIdx];
+function prepareLine(line){
+    let txt = line;
     workerResult = [];
+    let fontSeed = mainFontSeed;
+    let upperSeed = mainUpperSeed;
+    if (txt.slice(0, 1) == "^"){
+        txt = txt.slice(1);
+        fontSeed = tf.randomNormal([1, 1, 32]);
+        upperSeed = tf.randomNormal([1, 96]);
+    }
+
     if (txt == "" || txt == " "){
         return;
     }
     let txtSplit = split(txt, " ");
     for (let i = 0; i < txtSplit.length; i++){
+        let word = txtSplit[i];
+        let wFontSeed = fontSeed;
+        let wUpperSeed = upperSeed;
+        if (word.slice(0, 1) == "*"){
+            word = word.slice(1);
+            wFontSeed = hlFontSeed;
+            wUpperSeed = hlUpperSeed;
+        }
         if (randFontLines.includes(lineIdx)){
-            worker.postMessage([i, txtSplit[i], null, null]);
+            worker.postMessage([i, word, null, null]);
         } else {
-            worker.postMessage([i, txtSplit[i], fontSeed.dataSync(), upperSeed.dataSync()]);
+            if (backend != 'webgl'){
+                workerResult[i] = tf.tidy(() => {
+                    return generateWord(word, wFontSeed, wUpperSeed);
+                });
+            } else {
+                worker.postMessage([i, word, wFontSeed.dataSync(), wUpperSeed.dataSync()]);
+            }
         }
     }
 }
@@ -227,11 +345,12 @@ function drawWord(imArr, shape, txt, x, y){
     wordShader.setUniform('minVal', minVal/255);
     wordShader.setUniform('texture', im);
     buffer.rect(0, 0, 5, 5);
+    buffer.save(txt, "png");
 
     imagePage[0].image(buffer, x, y);
 }
 
-function generateWord(txt){
+function generateWord(txt, fontSeed, upperSeed){
     let da = alpha2idx(txt);
     let seed = tf.tile(fontSeed, [1, txt.length, 1]);
     // let a = tf.randomNormal([1, 1, 32]);
@@ -245,7 +364,7 @@ function generateWord(txt){
     res = res.squeeze([0]).asType('int32');
     let alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
     res = tf.concat([res, res, res, alpha], 2);
-    return res;
+    return [res.dataSync(), res.shape];
 }
 
 function genLerpSeed(a, b, length){
@@ -260,9 +379,9 @@ function genLerpSeed(a, b, length){
     return rb.sub(ra).mul(alphaArr).add(ra);
 }
 
-function lerp(a, b, alpha){
-    return (b-a) * alpha + a;
-}
+// function mlerp(a, b, alpha){
+//     return (b-a) * alpha + a;
+// }
 
 function typedArray2image(res, shape){
     let im = createImage(shape[1], shape[0]);
@@ -309,11 +428,11 @@ function addNewLastLine(){
 
 // -------- Coreo functions ---------
 function parseImageLine(line){
-    let body = line.slice(1, -1);
+    let body = line.slice(1);
     let type = split(body, "/")[0];
     let idx = parseInt(split(body, "/")[1]);
     let sliceIdx = parseInt(split(body, "/")[2]);
-    let dl = split(body, "/")[3];
+    let dl = parseInt(split(body, "/")[3]);
     let imList = imageDict[type];
     return [imList[idx], sliceIdx, dl];
 }
@@ -321,7 +440,7 @@ function parseImageLine(line){
 function addHoorayFrames(){
     let lines = [];
     let mode = 0;
-    let dl = 300;
+    let dl = 30;
     for (let i = 0; i < 76; i++){
         let li = "$" + "Hooray/" + nf(i, 6) + "/" +
             mode.toString() + "/" + dl.toString();
@@ -341,22 +460,63 @@ function addAnnyeongFrames(){
     let dl;
     for (let i = 0; i < numLinesPage; i++){
         let mode = i;
-        dl = 100;
+        dl = 42;
         let li = "$" + "Annyeong" + "/" + nf(0, 6) + "/" +
             mode.toString() + "/"+ dl.toString();
         lines.push(li);
     }
-    for (let i = 1; i < 100; i++){
-        let mode = -1;
-        dl = 300;
-        let li = "$" + "Annyeong" + "/" + nf(i, 6) + "/" +
+    // for (let i = 1; i < 100; i++){
+    //     let mode = -1;
+    //     dl = 300;
+    //     let li = "$" + "Annyeong" + "/" + nf(i, 6) + "/" +
+    //         mode.toString() + "/"+ dl.toString();
+    //     lines.push(li);
+    // }
+    let li = "@Annyeong";
+    lines.push(li);
+
+    let mode = -1;
+    dl = 0;
+    li = "$" + "Annyeong" + "/" + nf(100, 6) + "/" +
+        mode.toString() + "/"+ dl.toString();
+    lines.push(li);
+
+    for (let i = 0; i < 7; i++){
+        let mode = i;
+        dl = 30;
+        let li = "$" + "Annyeong" + "/" + nf(101, 6) + "/" +
             mode.toString() + "/"+ dl.toString();
         lines.push(li);
     }
+    pageText.push(...lines);
+}
+
+function addNihaoFrames(){
+    let lines = [];
+    let li;
+    let mode;
+    let dl;
+
+    for (let i = 0; i < numLinesPage; i++){
+        let mode = i;
+        dl = 42;
+        let li = "$" + "Nihao" + "/" + nf(0, 6) + "/" +
+            mode.toString() + "/"+ dl.toString();
+        lines.push(li);
+    }
+    li = "@Nihao";
+    lines.push(li);
+
+    mode = -1;
+    dl = 0;
+    li = "$" + "Nihao" + "/" + nf(1, 6) + "/" +
+        mode.toString() + "/"+ dl.toString();
+    lines.push(li);
+
     for (let i = 0; i < 7; i++){
         let mode = i;
-        dl = 100;
-        let li = "$" + "Annyeong" + "/" + nf(100, 6) + "/" +
+        dl = 30;
+        let li = "$" + "Nihao" + "/" + nf(2, 6) + "/" +
             mode.toString() + "/"+ dl.toString();
         lines.push(li);
     }

@@ -1,8 +1,8 @@
 #ifdef GL_ES
-// precision mediump float;
-// precision mediump int;
-precision highp float;
-precision highp int;
+precision mediump float;
+precision mediump int;
+// precision highp float;
+// precision highp int;
 #endif
 
 uniform sampler2D texture;
