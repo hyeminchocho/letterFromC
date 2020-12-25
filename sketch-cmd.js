@@ -29,14 +29,17 @@ let imageDir = "images";
 let hoorayFrames = [];
 let annyeongFrames = [];
 let nihaoFrames = [];
+let handFrames = [];
 let imageDict = {
     "Hooray" : hoorayFrames,
     "Annyeong" : annyeongFrames,
-    "Nihao" : nihaoFrames
+    "Nihao" : nihaoFrames,
+    "Hand" : handFrames
 };
 let videoDict = {
     "Annyeong" : null,
-    "Nihao" : null
+    "Nihao" : null,
+    "Hand" : null
 };
 let isLoadedVid = false;
 let currPlayingVideo = null;
@@ -85,7 +88,7 @@ let script02 = [
 ];
 
 let script03 = [
-    "",
+    "/3000",
     "^When I say things like this/4000",
     "^And things like this/4000",
     "Will you think of me the same/3000",
@@ -99,7 +102,19 @@ let script03 = [
     "Some things cant be said precisely because you have a *three *inch *tongue/4000",
     "Maybe I should just do it not caring if *three *seven is *twenty *one/4000",
     "",
+    "",
+    "So/5000",
+    "",
+    "Heres my try/4000",
     ""
+];
+
+let script04 = [
+    "/1000",
+    "/1000",
+    "/1000",
+    "With all my hearts/3000",
+    "C/5000"
 ];
 
 function preload(){
@@ -113,6 +128,11 @@ function preload(){
     videoDict["Nihao"].volume(0);
     videoDict["Nihao"].elt.muted = true;
     videoDict["Nihao"].hide();
+
+    videoDict["Hand"] = createVideo("images/Hand/Hand.mp4", videoLoaded);
+    videoDict["Hand"].volume(0);
+    videoDict["Hand"].elt.muted = true;
+    videoDict["Hand"].hide();
 }
 
 function videoLoaded(){
@@ -126,7 +146,6 @@ function setup(){
     mainUpperSeed = tf.randomNormal([1, 96]);
     hlFontSeed = tf.randomNormal([1, 1, 32]);
     hlUpperSeed = tf.randomNormal([1, 96]);
-    // setAttributes('antialias', true);
     createCanvas(windowWidth, windowHeight);
     imagePage = [createGraphics(windowWidth, windowHeight),
                  createGraphics(windowWidth, windowHeight)];
@@ -165,8 +184,10 @@ function setup(){
             annyeongFrames[i] = loadImage(imagePath);
         }
     }
+
+    let imagePath;
     // Load nihao
-    let imagePath = imageDir + "/" + "Nihao" + "/"
+    imagePath = imageDir + "/" + "Nihao" + "/"
         + "Nihao" + "-" + nf(0, 5) + ".png";
     nihaoFrames[0] = loadImage(imagePath);
     imagePath = imageDir + "/" + "Nihao" + "/"
@@ -175,14 +196,23 @@ function setup(){
     imagePath = imageDir + "/" + "Nihao" + "/"
         + "Nihao" + "-" + nf(101, 5) + ".png";
     nihaoFrames[2] = loadImage(imagePath);
+    // Load hand
+    for (let i = 0; i < 7; i++){
+        let imagePath = imageDir + "/" + "Hand" + "/"
+            + "Hand" + "-" + nf(i, 5) + ".png";
+        handFrames[i] = loadImage(imagePath);
+    }
 
     // Add script
     pageText.push(...script01);
     addHoorayFrames();
     pageText.push(...script02);
     addAnnyeongFrames();
+    pageText.push(...["", ""]);
     addNihaoFrames();
     pageText.push(...script03);
+    addHandFrames();
+    pageText.push(...script04);
 }
 
 let delay = 1;
@@ -281,7 +311,9 @@ function draw(){
     stroke(255);
     rect(0, 0, windowWidth, topPadding);
     rect(0, windowHeight-topPadding, windowWidth, windowHeight);
-    drawCursor();
+    if (lineIdx < pageText.length){
+        drawCursor();
+    }
     curr_t = millis();
 }
 
@@ -345,19 +377,19 @@ function drawWord(imArr, shape, txt, x, y){
     wordShader.setUniform('minVal', minVal/255);
     wordShader.setUniform('texture', im);
     buffer.rect(0, 0, 5, 5);
-    buffer.save(txt, "png");
 
     imagePage[0].image(buffer, x, y);
+    if (txt == "C"){
+        console.log("print C");
+        console.log(signature);
+        let sig = typedArray2image(signature.dataSync(), signature.shape);
+        imagePage[0].image(sig, x+pageCharWidth, y, pageCharWidth*4, pageLineHeight);
+    }
 }
 
 function generateWord(txt, fontSeed, upperSeed){
     let da = alpha2idx(txt);
     let seed = tf.tile(fontSeed, [1, txt.length, 1]);
-    // let a = tf.randomNormal([1, 1, 32]);
-    // let b = tf.randomNormal([1, 1, 32]);
-    // let firstS = tf.tile(a, [1, txt.length-8, 1]);
-    // let seed = genLerpSeed(a, b, 8);
-    // seed = tf.concat([firstS, seed], 1);
     let labels = tf.tensor([da], undefined, 'int32');
     let res = g.predict([seed, upperSeed, labels]);
     res = res.add(1.0).div(2.0).mul(255);
@@ -378,10 +410,6 @@ function genLerpSeed(a, b, length){
     rb = tf.tile(b, [1, length, 1]);
     return rb.sub(ra).mul(alphaArr).add(ra);
 }
-
-// function mlerp(a, b, alpha){
-//     return (b-a) * alpha + a;
-// }
 
 function typedArray2image(res, shape){
     let im = createImage(shape[1], shape[0]);
@@ -523,29 +551,49 @@ function addNihaoFrames(){
     pageText.push(...lines);
 }
 
-function addHoorayScript(){
-    let numHooray = 50;
-    let hoorPerLine = Math.floor(numCharLine / "hooray ".length);
-    let currNum = 0;
-    let fullLine = "";
-    for (let i = 0; i < hoorPerLine; i++){
-        fullLine = fullLine.concat("hooray ");
-    }
-    fullLine = fullLine.slice(0, -1);
-    while (currNum < numHooray){
-        if ((currNum + hoorPerLine) < numHooray){
-            pageText.push(fullLine);
-            currNum += hoorPerLine;
-        } else {
-            let lastHoor = numHooray - currNum;
-            let line = "";
-            for (let i = 0; i < lastHoor; i++){
-                line = line.concat("hooray ");
+function addHandFrames(){
+    let lines = [];
+    let li;
+    let mode;
+    let dl;
+
+    for (let p = 0; p < 4; p++){
+        for (let i = 0; i < numLinesPage; i++){
+            let mode = i;
+            dl = 42;
+            if (p == 0 && i == 0){
+                dl = 3000;
             }
-            line = line.slice(0, -1);
-            pageText.push(line);
-            currNum += lastHoor;
+            let li = "$" + "Hand" + "/" + nf(p, 6) + "/" +
+                mode.toString() + "/"+ dl.toString();
+            lines.push(li);
         }
-        randFontLines.push(pageText.length-1);
     }
+
+    li = "@Hand";
+    lines.push(li);
+
+    mode = -1;
+    dl = 0;
+    li = "$" + "Hand" + "/" + nf(4, 6) + "/" +
+        mode.toString() + "/"+ dl.toString();
+    lines.push(li);
+
+    dl = 42;
+    for (let p = 5; p < 7; p++){
+        let numLines = numLinesPage;
+        if (p == 6){
+            numLines = numLinesPage-4;
+        }
+        for (let i = 0; i < numLines; i++){
+            let mode = i;
+            dl += 7;
+            dl = min(dl, 200);
+            let li = "$" + "Hand" + "/" + nf(p, 6) + "/" +
+                mode.toString() + "/"+ dl.toString();
+            lines.push(li);
+        }
+    }
+
+    pageText.push(...lines);
 }
