@@ -399,8 +399,12 @@ let toload = [
     "generatorPrep_batchNormalization-moving_mean.npy",
     "generatorPrep_batchNormalization-moving_variance.npy",
     "generatorPrep_cond2d-kernel.npy",
-    "generatorPrep_cond2d-bias.npy",
-    // "font-00066.npy"
+    "generatorPrep_cond2d-bias.npy"
+];
+
+let toLoadFonts = [
+    "font-00066.npy",
+    "font-00046.npy"
 ];
 
 function alpha2idx(text){
@@ -414,10 +418,27 @@ function alpha2idx(text){
 
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
 let promises = [];
+let fontPromises = [];
 let signature = null;
+let fonts = [];
 g.isLoadedWeights = false;
 console.log("load weight ");
 console.log(g);
+
+toLoadFonts.map((fn) => {
+    let fullPath = "fonts/"+fn;
+    fontPromises.push(n.load(fullPath).then(res => {
+        console.log(fullPath);
+        let t = tf.tensor(res.data, res.shape);
+        return t;
+    }));
+});
+
+Promise.all(fontPromises).then((v) => {
+    fonts.push([v[0], v[1]]);
+    g.isLoadedFonts = true;
+
+});
 
 toload.map((fn) => {
     // let fullPath = "weights/"+fn;

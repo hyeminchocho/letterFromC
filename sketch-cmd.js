@@ -62,7 +62,7 @@ let randFontLines = [];
 let pageText = [];
 
 let script01 = [
-    "Dear hyemin",
+    "Hey",
     "",
     "Ive been meaning to get in touch",
     "please forgive me for not being more responsive/3000",
