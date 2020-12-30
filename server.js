@@ -4,13 +4,14 @@
 // Based off of Shawn Van Every's Live Web
 // http://itp.nyu.edu/~sve204/liveweb_fall2013/week3.html
 
-
 // HTTP Portion
 var http = require('http');
 // URL module
 var url = require('url');
 var path = require('path');
 // const querystring = require('querystring');
+// import { URLSearchParams } from 'url';
+// global.URLSearchParams = URLSearchParams;
 
 // Using the filesystem module
 var fs = require('fs');

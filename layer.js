@@ -258,9 +258,9 @@ class GeneratorPrep extends tf.layers.Layer{
         this.bn = tf.layers.batchNormalization();
         this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
                                         strides:(1, 1),
-                                        // kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
                                         kernelInitializer:tf.initializers.zeros(),
-                                        kernelRegularizer:tf.regularizers.l2(),
+                                        // kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same'});
         this.B_list = [];
         for (let block_idx = 0; block_idx < this.num_blocks; block_idx++){
@@ -420,24 +420,25 @@ let toLoadFonts = [
     "font-00023.npy",
     "font-00010.npy",
     "font-00043.npy",
+    "font-00036.npy",
+
+    "font-00049.npy",
+    "font-00087.npy",
+    "font-00066.npy",
+    "font-00046.npy",
+    "font-00085.npy",
+    "font-00045.npy",
+    "font-00021.npy",
     "font-00036.npy"
 ];
 
 let toLoadFrames = [
-    "frame-00039.npy",
-    "frame-00079.npy",
-    "frame-00138.npy",
-    "frame-00201.npy"
+    // "frame-00039.npy",
+    // "frame-00079.npy",
+    // "frame-00138.npy",
+    // "frame-00201.npy"
 ];
 
-function alpha2idx(text){
-    let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
-    let result = [];
-    for (let i = 0; i < text.length; i++){
-        result.push(alphav.indexOf(text[i]));
-    }
-    return result;
-}
 
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
 let promises = [];
@@ -450,23 +451,37 @@ g.isLoadedWeights = false;
 console.log("load weight ");
 console.log(g);
 
-toLoadFrames.map((fn) => {
-    // let fullPath = "frameRaster01-tr/"+fn;
-    let fullPath = "frames/"+fn;
-    framePromises.push(n.load(fullPath).then(res => {
-        // let t = tf.tensor(res.data, res.shape);
-        return res.data;
-    }));
-});
+function alpha2idx(text){
+    let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
+    let result = [];
+    for (let i = 0; i < text.length; i++){
+        result.push(alphav.indexOf(text[i]));
+    }
+    return result;
+}
 
-Promise.all(framePromises).then((v) => {
-    frames.push(v[0]);
-    frames.push(v[1]);
-    frames.push(v[2]);
-    frames.push(v[3]);
-    g.isLoadedFrames = true;
+function loadFrames(arr){
+    for (let i = 0; i < arr.length; i++){
+        let frName = "frame-".concat(arr[i].toString().padStart(5, '0')).concat(".npy");
+        toLoadFrames.push(frName);
+    }
+    toLoadFrames.map((fn) => {
+        // let fullPath = "frameRaster01-tr/"+fn;
+        let fullPath = "frames/"+fn;
+        framePromises.push(n.load(fullPath).then(res => {
+            // let t = tf.tensor(res.data, res.shape);
+            return res.data;
+        }));
+    });
+    Promise.all(framePromises).then((v) => {
+        frames.push(v[0]);
+        frames.push(v[1]);
+        frames.push(v[2]);
+        frames.push(v[3]);
+        g.isLoadedFrames = true;
 
-});
+    });
+}
 
 
 toLoadFonts.map((fn) => {
@@ -486,6 +501,7 @@ Promise.all(fontPromises).then((v) => {
 
 });
 
+
 toload.map((fn) => {
     // let fullPath = "weights/"+fn;
     // let fullPath = "mineWeights/"+fn;
@@ -500,6 +516,14 @@ toload.map((fn) => {
     }));
 });
 
+function setRandom(ly){
+    let ws = ly.getWeights();
+    let rs = [];
+    for (let i = 0; i < ws.length; i++){
+        rs.push(tf.randomNormal(ws[i].shape));
+    }
+    ly.setWeights(rs);
+}
 
 Promise.all(promises).then((v) => {
     let seed = tf.randomNormal([1, 1, 32]);
@@ -514,12 +538,56 @@ Promise.all(promises).then((v) => {
     signature = res;
     // signature = signature.dataSync();
 
-
     let genPrep = g.layers[3];
     let B1 = genPrep.B_list[0];
     let B2 = genPrep.B_list[1];
     let B3 = genPrep.B_list[2];
     let NLB = genPrep.B_list[3];
+
+
+    // Set random weights
+    setRandom(B1.cbn.dense1);
+    setRandom(B1.cbn.bn);
+    setRandom(B1.cbn.dense2);
+    setRandom(B1.conv2dT1);
+    setRandom(B1.cbn2.dense1);
+    setRandom(B1.cbn2.bn);
+    setRandom(B1.cbn2.dense2);
+    setRandom(B1.conv2d);
+    setRandom(B1.conv2dT2);
+
+    setRandom(B2.cbn.dense1);
+    setRandom(B2.cbn.bn);
+    setRandom(B2.cbn.dense2);
+    setRandom(B2.conv2dT1);
+    setRandom(B2.cbn2.dense1);
+    setRandom(B2.cbn2.bn);
+    setRandom(B2.cbn2.dense2);
+    setRandom(B2.conv2d);
+    setRandom(B2.conv2dT2);
+
+    setRandom(B3.cbn.dense1);
+    setRandom(B3.cbn.bn);
+    setRandom(B3.cbn.dense2);
+    setRandom(B3.conv2dT1);
+    setRandom(B3.cbn2.dense1);
+    setRandom(B3.cbn2.bn);
+    setRandom(B3.cbn2.dense2);
+    setRandom(B3.conv2d);
+    setRandom(B3.conv2dT2);
+
+    setRandom(NLB);
+    setRandom(genPrep.bn);
+    setRandom(genPrep.conv2d);
+
+    res = g.predict([seed, upperSeed, labels]);
+    res = res.add(1.0).div(2.0).mul(255);
+    res = res.squeeze([0]).asType('int32');
+    alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
+    res = tf.concat([res, res, res, alpha], 2);
+    signature = res;
+
+
 
     // Have to flush out the dead at least once
     genPrep.spatial_embedding.setWeights([v[0]]);

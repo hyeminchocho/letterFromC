@@ -27,6 +27,7 @@ let firstRasterFontIdx;
 let secondRasterHeight = 32;
 let secondRaster;
 let secondRasterFontIdx;
+let outroRaster = null;
 
 let handCache = null;
 
@@ -97,6 +98,12 @@ function preload(){
 }
 
 function setup(){
+    const params = new URLSearchParams(location.search);
+    const seed = parseInt(params.get("seed"));
+    // const page = parseInt(params.get("page"));
+    //create a random number generator with our designated seed
+    const rng = new Math.seedrandom(seed);
+
     imagePage = createGraphics(2412, 3074);
     imagePage.background(255, 255, 255, 255);
 
@@ -109,9 +116,6 @@ function setup(){
     pageCharWidth = pageLineHeight * 0.5;
     numCharLine = Math.round((imagePage.width-leftPadding*2)/pageCharWidth);
 
-    console.log("numcharline");
-    console.log(numCharLine);
-
     previewWidth = windowHeight/3074 * 2412;
 
     createCanvas(previewWidth*5+pagePadding*4, windowHeight);
@@ -120,16 +124,27 @@ function setup(){
                             Math.round(pageLineHeight), WEBGL);
     wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 
+    // Load random frames
+    loadFrames(pickRandomFrames());
 
-    // pageText.push(...script01);
-    // addHoorayScript();
-    // pageText.push(...script02);
-    // addAnnyeongScript();
-    // pageText.push(...["", ""]);
-    // addNihaoScript();
-    // pageText.push(...script03);
-    // pageText.push(...script04);
+    pageText.push(...script01);
+    addHoorayScript();
+    pageText.push(...script02);
+    addAnnyeongScript();
+    pageText.push(...["", ""]);
+    addNihaoScript();
+    pageText.push(...script03);
     addHandScript();
+    pageText.push(...script04);
+}
+
+function pickRandomFrames(){
+    let res = [];
+    res.push(round(random(0, 50)));
+    res.push(round(random(50, 120)));
+    res.push(round(random(121, 220)));
+    res.push(round(random(221, 250)));
+    return res;
 }
 
 function init(){
@@ -229,6 +244,15 @@ function drawLine(txt, x, y){
         fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
         upperSeed = fn.slice([0, 32], [1, 128-32]);
         txt = "";
+    } else if (txt.slice(0, 1) == "?"){
+        mode = "?";
+        sideWord = txt.slice(1);
+        fontIdx = 2;
+        let fn = fonts[fontIdx][0];
+        fontSeed = fn.slice([0, 0], [1, 32]);
+        fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
+        upperSeed = fn.slice([0, 32], [1, 128-32]);
+        txt = "";
     }
     let txtSplit = [];
     if (txt.length > 0){
@@ -252,7 +276,8 @@ function drawLine(txt, x, y){
         }
         let resWd = generateWord(word, wFontSeed, wUpperSeed);
         let im = tensor2image(resWd);
-        drawWord(im, word.length, x+startX, y);
+        let isSig = word == "C";
+        drawWord(im, word.length, x+startX, y, isSig);
         startX += (word.length + 1) * pageCharWidth;
     }
     if (mode == "~" && rIdx != null){
@@ -275,10 +300,84 @@ function drawLine(txt, x, y){
         im = tensor2image(im);
         let numChar = im.width/charWidth;
         drawWord(im, numChar, x+startX, y);
+    } else if (mode == "?"){
+        let bFont = fonts[fontIdx][0];
+        let tFont = fonts[fontIdx][1];
+
+        let pp = divideSideWord(sideWord);
+        let pre = pp[0];
+        let post = pp[1];
+
+        let line = pre.concat("x".repeat(numCharLine-pre.length-post.length)).concat(post);
+        let im = renderHandOutro(line, bFont, tFont);
+        im = tensor2image(im);
+        let numChar = im.width/charWidth;
+        drawWord(im, numChar, x+startX, y);
     }
 }
 
-function drawWord(im, wl, x, y ){
+function renderHandOutro(line, baseFont, targetFont){
+    let bFont = baseFont.slice([0, 0], [1, 32]);
+    let upperSeed = baseFont.slice([0, 32], [1, 128-32]);
+    let tFont = targetFont.slice([0, 0], [1, 32]);
+    bFont = tf.reshape(bFont, [1, 1, 32]);
+    tFont = tf.reshape(tFont, [1, 1, 32]);
+
+    let outroCutIdx = [Math.round(numCharLine/3), Math.round(numCharLine/3*2)];
+    // let excludeIdx = [];
+    // for (let i = 0; i < outroCutIdx.length; i++){
+    //     excludeIdx.push(outroCutIdx[i]-1);
+    //     excludeIdx.push(outroCutIdx[i]);
+    //     excludeIdx.push(outroCutIdx[i]+1);
+    // }
+    if (handCache == null){
+        makeCache("x", "t", bFont, tFont, upperSeed);
+    }
+    if (outroRaster == null){
+        outroRaster = Array(numCharLine).fill(1.0);
+    }
+    for (let i = 0; i < numCharLine; i++){
+        if (Math.random() < 0.1 && !outroCutIdx.includes(i)){
+            outroRaster[i] = 0.0;
+        }
+    }
+
+    let li01 = line.slice(0, outroCutIdx[0]+1);
+    let li02 = line.slice(outroCutIdx[0], outroCutIdx[1]+1);
+    let li03 = line.slice(outroCutIdx[1]);
+    let ra01 = outroRaster.slice(0, outroCutIdx[0]+1);
+    let ra02 = outroRaster.slice(outroCutIdx[0], outroCutIdx[1]+1);
+    let ra03 = outroRaster.slice(outroCutIdx[1]);
+
+    console.log("render outro");
+    let randCoeff = 0.075;
+
+    let m01 = tf.tile(tf.reshape(tf.tensor(ra01), [1, ra01.length, 1]), [1, 1, 32]);
+    let fs01 = tf.tile(bFont, [1, li01.length, 1]).mul(m01);
+    fs01 = fs01.add(tf.randomNormal(fs01.shape).mul(randCoeff));
+    let res01 = generateWord(li01, fs01, upperSeed);
+
+    let m02 = tf.tile(tf.reshape(tf.tensor(ra02), [1, ra02.length, 1]), [1, 1, 32]);
+    let fs02 = tf.tile(bFont, [1, li02.length, 1]).mul(m02);
+    fs02 = fs02.add(tf.randomNormal(fs02.shape).mul(randCoeff));
+    let res02 = generateWord(li02, fs02, upperSeed);
+
+    let m03 = tf.tile(tf.reshape(tf.tensor(ra03), [1, ra03.length, 1]), [1, 1, 32]);
+    let fs03 = tf.tile(bFont, [1, li03.length, 1]).mul(m03);
+    fs03 = fs03.add(tf.randomNormal(fs03.shape).mul(randCoeff));
+    let res03 = generateWord(li03, fs03, upperSeed);
+
+    console.log(res02);
+    let res = tf.concat([res01.slice([0, 0, 0], [lineHeight, (li01.length-1)*charWidth, 4]),
+                         handCache["zeroC"]["mid"],
+                         res02.slice([0, charWidth, 0], [lineHeight, (li02.length-2)*charWidth, 4]),
+                         handCache["zeroC"]["mid"],
+                         res03.slice([0, charWidth, 0], [lineHeight, (li03.length-1)*charWidth, 4])], 1);
+    return res;
+
+}
+
+function drawWord(im, wl, x, y, isSig){
     let lengthRatio = wl / numCharLine;
 
     buffer.background(255, 255, 255, 255);
@@ -288,6 +387,13 @@ function drawWord(im, wl, x, y ){
     buffer.rect(0, 0, 5, 5);
 
     imagePage.image(buffer, x, y);
+    if (isSig){
+        console.log("print C");
+        console.log(signature);
+        // let sig = typedArray2image(signature.dataSync(), signature.shape);
+        let sig = tensor2image(signature);
+        imagePage.image(sig, x+pageCharWidth, y, pageCharWidth*4, pageLineHeight);
+    }
 }
 
 function generateWord(txt, fontSeed, upperSeed){
@@ -482,7 +588,6 @@ function remapHandRasterLine(parsed, sideWord, c, hl){
     let post = pp[1];
 
     if (pre.length > currLines[0].length-1){
-        console.log("long pre");
         let p = currLines[0].concat(currLines[1]);
         p = pre.concat(p.slice(pre.length));
         currLines = p.concat(currLines.slice(2));
@@ -490,14 +595,12 @@ function remapHandRasterLine(parsed, sideWord, c, hl){
         let r = mappedRaster.slice(0, 1).concat(mappedRaster.slice(1, 2));
         mappedRaster = r.concat(mappedRaster.slice(2));
     } else {
-        console.log("short pre");
         let p = currLines[0];
         p = pre.concat(p.slice(pre.length));
         currLines = [p].concat(currLines.slice(1));
     }
 
     if (post.length > currLines[currLines.length-1].length-1){
-        console.log("long post");
         let p = currLines[currLines.length-2].concat(currLines[currLines.length-1]);
         p = p.slice(0, p.length-post.length).concat(post);
         currLines = currLines.slice(0, -2).concat(p);
@@ -506,7 +609,6 @@ function remapHandRasterLine(parsed, sideWord, c, hl){
             .concat(mappedRaster[mappedRaster.length-1]);
         mappedRaster = mappedRaster.slice(0, -2).concat([r]);
     } else {
-        console.log("short post");
         let p = currLines[currLines.length-1];
         p = p.slice(0, p.length-post.length).concat(post);
         currLines = currLines.slice(0, -1).concat(p);
@@ -528,9 +630,6 @@ function remapHandRasterLine(parsed, sideWord, c, hl){
         mappedRaster = mappedRaster.slice(0, -1).concat([rl.slice(0, -post.length-1),
                                                          rl.slice(-post.length-1)]);
     }
-
-    console.log(currLines);
-    console.log(mappedRaster);
 
     return [mappedRaster, currLines];
 }
@@ -665,7 +764,7 @@ function genWordRaster(txt, ln, cn){
 // Add scripts
 function addHoorayScript(){
     let lines = [];
-    let numHooray = 500;
+    let numHooray = 750;
     let hPerLine = Math.floor((numCharLine-"Hooray".length)/"Hooray ".length)+1;
 
     let currNum = 0;
@@ -764,6 +863,13 @@ function addHandScript(){
     }
 
     let count = 0;
+    frNum = 0;
+    for (let i = 0; i < 32-8; i++){
+        let side = getCurrSide(count);
+        count += 1;
+        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+        lines.push(li);
+    }
     frNum = 1;
     for (let i = 0; i < 32-8; i++){
         let side = getCurrSide(count);
@@ -778,11 +884,19 @@ function addHandScript(){
         let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
         lines.push(li);
     }
-    frNum = 2;
+    frNum = 3;
     for (let i = 0; i < 32-8; i++){
         let side = getCurrSide(count);
         count += 1;
         let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+        lines.push(li);
+    }
+
+    // Outro
+    for (let i = 0; i < 26; i++){
+        let side = getCurrSide(count);
+        count += 1;
+        let li = "?".concat(side);
         lines.push(li);
     }
 
