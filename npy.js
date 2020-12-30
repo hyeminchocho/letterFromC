@@ -82,6 +82,7 @@ class npyjs {
             hcontents
                 .replace(/'/g, '"')
                 .replace("False", "false")
+                // .replace("True", "true")
                 .replace("(", "[")
                 .replace(/,*\),*/g, "]")
         );

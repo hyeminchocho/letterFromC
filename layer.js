@@ -22,7 +22,8 @@ class ConditionalBatchNorm extends tf.layers.Layer{
                                        kernelInitializer:tf.initializers.zeros()});
         this.dense2 = tf.layers.dense({units:this.num_channels, useBias:false,
                                        activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
-                                       kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 })});
+                                       // kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 })});
+                                       kernelInitializer:tf.initializers.zeros()});
     }
 
     call(inputs, conditioning_vector, kwargs){
@@ -73,13 +74,15 @@ class ResNetBlockUp extends tf.layers.Layer{
         this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3),
                                         strides:(1, 1),
                                         kernelInitializer:
-                                        tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        tf.initializers.zeros(),
                                         kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same', useBias:true});
         this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim,
                                                    kernelSize:(1, 1), strides:up_stride,
                                                    kernelInitializer:
-                                                   tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                                   // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                                   tf.initializers.zeros(),
                                                    kernelRegularizer:tf.regularizers.l2(),
                                                    padding:'same', useBias:true});
     }
@@ -123,7 +126,8 @@ class NonLocalBlock extends tf.layers.Layer{
         this.sigma = this.addWeight("sigma",
                                      [],
                                     'float32',
-                                    tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                    // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                    tf.initializers.zeros(),
                                     undefined,
                                      true);
         this.conv2d1 = tf.layers.conv2d({filters:this.num_channels_attn,
@@ -131,7 +135,8 @@ class NonLocalBlock extends tf.layers.Layer{
                                        strides:(1, 1),
                                        padding:'same',
                                        kernelInitializer:
-                                       tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                       // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         tf.initializers.zeros(),
                                        kernelRegularizer:tf.regularizers.l2(),
                                        name:"conv2d_1"});
         this.conv2d2 = tf.layers.conv2d({filters:this.num_channels_attn,
@@ -139,7 +144,8 @@ class NonLocalBlock extends tf.layers.Layer{
                                          strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         tf.initializers.zeros(),
                                          kernelIegularizer:tf.regularizers.l2(),
                                          name:"conv2d_2"});
         this.maxpool = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2});
@@ -148,14 +154,16 @@ class NonLocalBlock extends tf.layers.Layer{
                                          strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_3"});
         this.conv2d4 = tf.layers.conv2d({filters:this.num_channels, kernelSize:(1, 1),
                                          useBias:false, strides:(1, 1),
                                          padding:'same',
                                          kernelInitializer:
-                                         tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                         tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_4"});
     }
@@ -211,7 +219,10 @@ class SpatialEmbedding extends tf.layers.Layer{
     build(inputShape){
         this.kernel = this.addWeight("filter_bank",
                                      [this.vocab_size, this.filter_dim[0], this.filter_dim[1]],
-                                     null, tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }), null, true);
+                                     null,
+                                     // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                     tf.initializers.zeros(),
+                                     null, true);
     }
 
     computeOutputShape(inputShape){
@@ -247,7 +258,8 @@ class GeneratorPrep extends tf.layers.Layer{
         this.bn = tf.layers.batchNormalization();
         this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
                                         strides:(1, 1),
-                                        kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        // kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        kernelInitializer:tf.initializers.zeros(),
                                         kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same'});
         this.B_list = [];
@@ -404,7 +416,18 @@ let toload = [
 
 let toLoadFonts = [
     "font-00066.npy",
-    "font-00046.npy"
+    "font-00046.npy",
+    "font-00023.npy",
+    "font-00010.npy",
+    "font-00043.npy",
+    "font-00036.npy"
+];
+
+let toLoadFrames = [
+    "frame-00039.npy",
+    "frame-00079.npy",
+    "frame-00138.npy",
+    "frame-00201.npy"
 ];
 
 function alpha2idx(text){
@@ -419,11 +442,32 @@ function alpha2idx(text){
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
 let promises = [];
 let fontPromises = [];
+let framePromises = [];
 let signature = null;
 let fonts = [];
+let frames = [];
 g.isLoadedWeights = false;
 console.log("load weight ");
 console.log(g);
+
+toLoadFrames.map((fn) => {
+    // let fullPath = "frameRaster01-tr/"+fn;
+    let fullPath = "frames/"+fn;
+    framePromises.push(n.load(fullPath).then(res => {
+        // let t = tf.tensor(res.data, res.shape);
+        return res.data;
+    }));
+});
+
+Promise.all(framePromises).then((v) => {
+    frames.push(v[0]);
+    frames.push(v[1]);
+    frames.push(v[2]);
+    frames.push(v[3]);
+    g.isLoadedFrames = true;
+
+});
+
 
 toLoadFonts.map((fn) => {
     let fullPath = "fonts/"+fn;
@@ -436,6 +480,8 @@ toLoadFonts.map((fn) => {
 
 Promise.all(fontPromises).then((v) => {
     fonts.push([v[0], v[1]]);
+    fonts.push([v[2], v[3]]);
+    fonts.push([v[4], v[5]]);
     g.isLoadedFonts = true;
 
 });

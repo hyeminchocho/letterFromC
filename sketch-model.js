@@ -2,15 +2,15 @@ let lineIdx = 0;
 
 let lineHeight = 32;
 let charWidth = 16;
-let topPadding = 5;
-let leftPadding = 5;
+let topPadding = 20;
+let leftPadding = 20;
 
 let pagePadding = 5;
 
 let pageLineHeight;
 let pageCharWidth;
 
-let numLinesPage = 55;
+let numLinesPage = 58; // 55;
 let numCharLine;
 
 let previewWidth;
@@ -23,8 +23,12 @@ let imagePage;
 
 let firstRasterHeight = 22;
 let firstRaster;
+let firstRasterFontIdx;
 let secondRasterHeight = 32;
 let secondRaster;
+let secondRasterFontIdx;
+
+let handCache = null;
 
 let mainFontSeed;
 let mainUpperSeed;
@@ -103,38 +107,59 @@ function setup(){
 
     pageLineHeight = (imagePage.height-topPadding*2) / numLinesPage;
     pageCharWidth = pageLineHeight * 0.5;
-    numCharLine = Math.ceil((imagePage.width-leftPadding*2)/pageCharWidth);
+    numCharLine = Math.round((imagePage.width-leftPadding*2)/pageCharWidth);
+
+    console.log("numcharline");
+    console.log(numCharLine);
 
     previewWidth = windowHeight/3074 * 2412;
 
     createCanvas(previewWidth*5+pagePadding*4, windowHeight);
 
-    buffer = createGraphics(numCharLine*pageCharWidth, pageLineHeight, WEBGL);
+    buffer = createGraphics(Math.round(numCharLine*pageCharWidth),
+                            Math.round(pageLineHeight), WEBGL);
     wordShader.setUniform('fontColor', [0.0, 0.0, 0.0]);
 
-    firstRaster = genWordRaster("안녕", firstRasterHeight,
-                                numCharLine-"My annyeong is not".length);
 
-    secondRaster = genWordRaster("你好", firstRasterHeight,
-                                numCharLine-"My nihao is not".length);
-
-    pageText.push(...script01);
-    addHoorayScript();
-    pageText.push(...script02);
-    addAnnyeongScript();
-    addNihaoScript();
-    pageText.push(...script03);
-    pageText.push(...script04);
+    // pageText.push(...script01);
+    // addHoorayScript();
+    // pageText.push(...script02);
+    // addAnnyeongScript();
+    // pageText.push(...["", ""]);
+    // addNihaoScript();
+    // pageText.push(...script03);
+    // pageText.push(...script04);
+    addHandScript();
 }
 
-let isBg = false;
+function init(){
+    // Set raster fonts
+    firstRasterFontIdx = Math.round((fonts.length-1) * Math.random());
+    secondRasterFontIdx = Math.round((fonts.length-1) * Math.random());
+    for(let i = 0; i < 10; i++){
+        if (firstRasterFontIdx == secondRasterFontIdx){
+            secondRasterFontIdx = Math.round((fonts.length-1) * Math.random());
+        } else {
+            break;
+        }
+    }
+
+    firstRaster = genWordRaster("안녕", firstRasterHeight,
+                                numCharLine-"My annyeong is no".length);
+
+    secondRaster = genWordRaster("你好", firstRasterHeight,
+                                 numCharLine-"My nihao is no".length);
+}
+
+let isInited = false;
 
 function draw(){
-    if (!isBg){
+    if (!isInited && g.isLoadedFonts){
         background(230);
-        isBg = true;
+        init();
+        isInited = true;
     }
-    if (lineIdx < pageText.length && g.isLoadedWeights){
+    if (lineIdx < pageText.length && g.isLoadedWeights && isInited){
         let cursorIdx = lineIdx%numLinesPage;
         if (cursorIdx == 0){
             imagePage.background(255, 255, 255, 255);
@@ -143,11 +168,12 @@ function draw(){
         let line = pageText[lineIdx];
         drawLine(line, leftPadding,
                  topPadding+pageLineHeight*cursorIdx);
-        lineIdx += 1;
 
         image(imagePage,
               Math.floor(lineIdx/numLinesPage)*(previewWidth+pagePadding), 0,
               previewWidth, windowHeight);
+
+        lineIdx += 1;
     }
 
 }
@@ -162,7 +188,8 @@ function drawLine(txt, x, y){
     let numRaster = null;
     let rIdx = null;
     let fontIdx = null;
-    console.log(txt);
+    let frameNum = null;
+    let sideWord = null;
     if (txt.slice(0, 1) == "^"){
         mode = "^";
         txt = txt.slice(1);
@@ -171,21 +198,42 @@ function drawLine(txt, x, y){
     } else if (txt.slice(0, 1) == "~"){
         mode = "~";
         txt = txt.slice(1);
-        fontIdx = Math.round((fonts.length-1) * Math.random());
+        let sp = txt.split("/");
+        numRaster = parseInt(sp[0]);
+
+        fontIdx = firstRasterFontIdx;
+        if (numRaster == 2){
+            fontIdx = secondRasterFontIdx;
+        }
         let fn = fonts[fontIdx][0];
         fontSeed = fn.slice([0, 0], [1, 32]);
         fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
         upperSeed = fn.slice([0, 32], [1, 128-32]);
 
-        if (txt.includes("/")){
-            let sp = txt.split("/");
-            numRaster = parseInt(sp[0]);
+        if (sp.length > 2){
             rIdx = parseInt(sp[1]);
             txt = sp[2];
-            console.log(txt);
+        } else {
+            txt = sp[1];
         }
+    } else if (txt.slice(0, 1) == "@"){
+        mode = "@";
+        txt = txt.slice(1);
+        let sp = txt.split("/");
+        frameNum = sp[0];
+        rIdx = parseInt(sp[1]);
+        sideWord = sp[2];
+        fontIdx = 2;
+        let fn = fonts[fontIdx][0];
+        fontSeed = fn.slice([0, 0], [1, 32]);
+        fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
+        upperSeed = fn.slice([0, 32], [1, 128-32]);
+        txt = "";
     }
-    let txtSplit = split(txt, " ");
+    let txtSplit = [];
+    if (txt.length > 0){
+        txtSplit = split(txt, " ");
+    }
     let startX = 0;
 
 
@@ -215,7 +263,15 @@ function drawLine(txt, x, y){
         }
         let bFont = fonts[fontIdx][0];
         let tFont = fonts[fontIdx][1];
-        let im = renderRaster(ras, rIdx, bFont, tFont);
+        let im = renderWordRaster(ras, rIdx, bFont, tFont);
+        im = tensor2image(im);
+        let numChar = im.width/charWidth;
+        drawWord(im, numChar, x+startX, y);
+    } else if (mode == "@"){
+        let bFont = fonts[fontIdx][0];
+        let tFont = fonts[fontIdx][1];
+        let ras = frames[frameNum];
+        let im = renderHandRaster(ras, rIdx, sideWord, bFont, tFont);
         im = tensor2image(im);
         let numChar = im.width/charWidth;
         drawWord(im, numChar, x+startX, y);
@@ -223,9 +279,9 @@ function drawLine(txt, x, y){
 }
 
 function drawWord(im, wl, x, y ){
-    let lengthRatio = wl/ numCharLine;
+    let lengthRatio = wl / numCharLine;
 
-    buffer.background(255);
+    buffer.background(255, 255, 255, 255);
     buffer.shader(wordShader);
     wordShader.setUniform('lengthRatio', lengthRatio);
     wordShader.setUniform('texture', im);
@@ -277,15 +333,221 @@ function tensor2image(res){
     return im;
 }
 
-function renderRaster(raster, idx, baseFont, targetFont){
+function makeCache(c, hl, bFont, tFont, upperSeed){
+    handCache = {};
+
+    let zerocF = raster2font([0.0, 0.0, 0.0], bFont, tFont);
+    let zerocAll = generateWord(c.repeat(3), zerocF, upperSeed);
+    let zerocStart = zerocAll.slice([0, 0], [32, 16]);
+    let zerocMid = zerocAll.slice([0, 16], [32, 16]);
+    let zerocEnd = zerocAll.slice([0, 32], [32, 16]);
+    let zerocCache = {};
+    zerocCache["start"] = zerocStart;
+    zerocCache["mid"] = zerocMid;
+    zerocCache["end"] = zerocEnd;
+
+    handCache["zeroC"] = zerocCache;
+
+    let zerohlF = raster2font([0.0, 0.0, 0.0], bFont, tFont);
+    let zerohlAll = generateWord(hl.repeat(3), zerohlF, upperSeed);
+    let zerohlStart = zerohlAll.slice([0, 0], [32, 16]);
+    let zerohlMid = zerohlAll.slice([0, 16], [32, 16]);
+    let zerohlEnd = zerohlAll.slice([0, 32], [32, 16]);
+    let zerohlCache = {};
+    zerohlCache["start"] = zerohlStart;
+    zerohlCache["mid"] = zerohlMid;
+    zerohlCache["end"] = zerohlEnd;
+
+    handCache["zeroHl"] = zerohlCache;
+
+    // let oneF = raster2font([1.0, 1.0, 1.0], bFont, tFont);
+    // let oneAll = generateWord(hl.repeat(3), oneF, upperSeed);
+    // let oneStart = oneAll.slice([0, 0], [32, 16]);
+    // let oneMid = oneAll.slice([0, 16], [32, 16]);
+    // let oneEnd = oneAll.slice([0, 32], [32, 16]);
+}
+
+
+function renderHandRaster(raster, idx, sideWord, baseFont, targetFont){
     let bFont = baseFont.slice([0, 0], [1, 32]);
     let upperSeed = baseFont.slice([0, 32], [1, 128-32]);
     let tFont = targetFont.slice([0, 0], [1, 32]);
     bFont = tf.reshape(bFont, [1, 1, 32]);
     tFont = tf.reshape(tFont, [1, 1, 32]);
 
-    let h = raster.length;
-    let w = raster[0].length;
+    let rasLine = raster.slice(idx*numCharLine, (idx+1)*numCharLine);
+    rasLine = Array.from(rasLine);
+    rasLine = rasLine.map(x => 1.0 - x/255.0);
+
+    let c = "x";
+    let hl = "t";
+    let parsed = parseRasterLine(rasLine);
+    let rhrl = remapHandRasterLine(parsed, sideWord, c, hl);
+    parsed = rhrl[0];
+    let currLines = rhrl[1];
+
+    if (handCache == null){
+        makeCache(c, hl, bFont, tFont, upperSeed);
+    }
+
+
+    let tfchunks = [];
+    for (let i = 0; i < parsed.length; i++){
+        let p = parsed[i];
+        let currLine = currLines[i];
+        if (Math.max(...p) <= 0.0 && isAllSameChar(currLine)){
+            let currCache = handCache["zeroC"];
+            if (currLine.slice(0, 1) == hl){
+                currCache = handCache["zeroHl"];
+            }
+            for (let x = 0; x < p.length; x++){
+                if (i == 0 && x == 0){
+                    tfchunks.push(currCache["start"]);
+                } else if (i == parsed.length-1 && x == p.length-1){
+                    tfchunks.push(currCache["mid"]);
+                } else {
+                    tfchunks.push(currCache["end"]);
+                }
+            }
+        } else {
+            let padLine = currLine.slice(0, 1).concat(currLine).concat(currLine.slice(-1));
+            let padP = p.slice(0, 1).concat(p).concat(p.slice(-1));
+            if (i == 0){
+                padLine = currLine.concat(currLine.slice(-1));
+                padP = p.concat(p.slice(-1));
+            } else if (i == parsed.length-1){
+                padLine = currLine.slice(0, 1).concat(currLine);
+                padP = p.slice(0, 1).concat(p);
+            }
+
+            let fontSeed = raster2font(padP, bFont, tFont);
+            let res = generateWord(padLine, fontSeed, upperSeed);
+            if (i == 0){
+                res = res.slice([0, 0], [32, 16 * currLine.length]);
+            } else {
+                res = res.slice([0, 16], [32, 16 * currLine.length]);
+            }
+            tfchunks.push(res);
+        }
+    }
+    tfchunks = tf.concat(tfchunks, 1);
+    return tfchunks;
+}
+
+function isAllSameChar(txt){
+    let c = txt.slice(0, 1);
+    for (let i = 1; i < txt.length; i++){
+        if (c != txt[i]){
+            return false;
+        }
+    }
+    return true;
+}
+
+function divideSideWord(sideWord){
+    let idx = sideWord.indexOf("o");
+    let pre = sideWord.slice(0, idx);
+    let post = sideWord.slice(idx+1);
+    while (post.includes("o")){
+        post = post.slice(1);
+    }
+    return [pre, post];
+}
+
+function remapHandRasterLine(parsed, sideWord, c, hl){
+    let currLines = [];
+    let mappedRaster = [];
+
+    let idx = 0;
+    for (let i = 0; i < parsed.length; i++){
+        let cl = "";
+        let mr = [];
+        let p = parsed[i];
+        for (let x = 0; x < p.length; x++){
+            if (p[x] <= 0.1){
+                cl = cl.concat(c);
+                mr.push(0.0);
+            } else {
+                cl = cl.concat(hl);
+                let m = 1.0 - ((p[x] - 0.1) / 0.9);
+                mr.push(m);
+            }
+        }
+        currLines.push(cl);
+        mappedRaster.push(mr);
+    }
+
+    let pp = divideSideWord(sideWord);
+    let pre = pp[0];
+    let post = pp[1];
+
+    if (pre.length > currLines[0].length-1){
+        console.log("long pre");
+        let p = currLines[0].concat(currLines[1]);
+        p = pre.concat(p.slice(pre.length));
+        currLines = p.concat(currLines.slice(2));
+
+        let r = mappedRaster.slice(0, 1).concat(mappedRaster.slice(1, 2));
+        mappedRaster = r.concat(mappedRaster.slice(2));
+    } else {
+        console.log("short pre");
+        let p = currLines[0];
+        p = pre.concat(p.slice(pre.length));
+        currLines = [p].concat(currLines.slice(1));
+    }
+
+    if (post.length > currLines[currLines.length-1].length-1){
+        console.log("long post");
+        let p = currLines[currLines.length-2].concat(currLines[currLines.length-1]);
+        p = p.slice(0, p.length-post.length).concat(post);
+        currLines = currLines.slice(0, -2).concat(p);
+
+        let r = mappedRaster[mappedRaster.length-2]
+            .concat(mappedRaster[mappedRaster.length-1]);
+        mappedRaster = mappedRaster.slice(0, -2).concat([r]);
+    } else {
+        console.log("short post");
+        let p = currLines[currLines.length-1];
+        p = p.slice(0, p.length-post.length).concat(post);
+        currLines = currLines.slice(0, -1).concat(p);
+    }
+
+    if (isAllSameNum(mappedRaster[0])){
+        let lf = currLines[0];
+        let rf = mappedRaster[0];
+        currLines = [lf.slice(0, pre.length+1),
+                     lf.slice(pre.length+1)].concat(currLines.slice(1));
+        mappedRaster = [rf.slice(0, pre.length+1),
+                        rf.slice(pre.length+1)].concat(mappedRaster.slice(1));
+    }
+    if (isAllSameNum(mappedRaster[mappedRaster.length-1])){
+        let ll = currLines[currLines.length-1];
+        let rl = mappedRaster[mappedRaster.length-1];
+        currLines = currLines.slice(0, -1).concat([ll.slice(0, -post.length-1),
+                                                   ll.slice(-post.length-1)]);
+        mappedRaster = mappedRaster.slice(0, -1).concat([rl.slice(0, -post.length-1),
+                                                         rl.slice(-post.length-1)]);
+    }
+
+    console.log(currLines);
+    console.log(mappedRaster);
+
+    return [mappedRaster, currLines];
+}
+
+function isAllSameNum(arr){
+    return Math.max(...arr) == Math.min(...arr);
+}
+
+function renderWordRaster(raster, idx, baseFont, targetFont){
+    let bFont = baseFont.slice([0, 0], [1, 32]);
+    let upperSeed = baseFont.slice([0, 32], [1, 128-32]);
+    let tFont = targetFont.slice([0, 0], [1, 32]);
+    bFont = tf.reshape(bFont, [1, 1, 32]);
+    tFont = tf.reshape(tFont, [1, 1, 32]);
+
+    // let h = raster.length;
+    // let w = raster[0].length;
     let c = "t";
     let parsed = parseRasterLine(raster[idx]);
 
@@ -305,7 +567,6 @@ function renderRaster(raster, idx, baseFont, targetFont){
         let p = parsed[i];
         let currLine = c.repeat(p.length);
         if (Math.max(...p) <= 0.0){
-            console.log("In zero");
             for (let x = 0; x < p.length; x++){
                 if (i == 0 && x == 0){
                     tfchunks.push(zeroStart);
@@ -316,7 +577,6 @@ function renderRaster(raster, idx, baseFont, targetFont){
                 }
             }
         } else if (Math.min(...p) >= 1.0){
-            console.log("In one");
             for (let x = 0; x < p.length; x++){
                 if (i == 0 && x == 0){
                     tfchunks.push(oneStart);
@@ -435,7 +695,7 @@ function addAnnyeongScript(){
     let c = "t";
 
     for (let i = 0; i < numT.length; i++){
-        let li = "~".concat(pre).concat(c.repeat(numT[i]));
+        let li = "~1/".concat(pre).concat(c.repeat(numT[i]));
         lines.push(li);
     }
     for (let i = 0; i < firstRasterHeight; i++){
@@ -444,7 +704,7 @@ function addAnnyeongScript(){
         lines.push(li);
     }
     for (let i = numT.length-1; i >= 0; i--){
-        let li = "~".concat(pre).concat(c.repeat(numT[i]));
+        let li = "~1/".concat(pre).concat(c.repeat(numT[i]));
         lines.push(li);
     }
 
@@ -458,7 +718,7 @@ function addNihaoScript(){
     let c = "t";
 
     for (let i = 0; i < numT.length; i++){
-        let li = "~".concat(pre).concat(c.repeat(numT[i]));
+        let li = "~2/".concat(pre).concat(c.repeat(numT[i]));
         lines.push(li);
     }
     for (let i = 0; i < firstRasterHeight; i++){
@@ -467,7 +727,62 @@ function addNihaoScript(){
         lines.push(li);
     }
     for (let i = numT.length-1; i >= 0; i--){
-        let li = "~".concat(pre).concat(c.repeat(numT[i]));
+        let li = "~2/".concat(pre).concat(c.repeat(numT[i]));
+        lines.push(li);
+    }
+
+    pageText.push(...lines);
+}
+
+function addHandScript(){
+    let lines = [];
+    let frNum;
+    let sideUnit = 8;
+
+    let sideList = [
+        "doubt",
+        "approval",
+        "worth",
+        "foreign",
+        "home",
+        "wrong",
+        "knowing",
+        "proof",
+        "road",
+        "nothing",
+        "choice",
+        "blood"
+    ];
+    sideList.sort(() => 0.5 - Math.random());
+
+    function getCurrSide(count){
+        let side = "about";
+        if (Math.floor(count/sideUnit) % 2 == 1){
+            side = sideList[(Math.floor(count/sideUnit)-1)/2];
+        }
+        return side;
+    }
+
+    let count = 0;
+    frNum = 1;
+    for (let i = 0; i < 32-8; i++){
+        let side = getCurrSide(count);
+        count += 1;
+        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+        lines.push(li);
+    }
+    frNum = 2;
+    for (let i = 0; i < 32-8; i++){
+        let side = getCurrSide(count);
+        count += 1;
+        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+        lines.push(li);
+    }
+    frNum = 2;
+    for (let i = 0; i < 32-8; i++){
+        let side = getCurrSide(count);
+        count += 1;
+        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
         lines.push(li);
     }
 

@@ -29,8 +29,9 @@ void main() {
   // alpha = alpha * 1.2;
   alpha = alpha * (1.0 - step(1.0, uv.x));
   gl_FragColor = vec4(fontColor, alpha);
+  // gl_FragColor = vec4(vec3(1.0-alpha), 1.0);
   // gl_FragColor = vec4(col.rgb, alpha);
   // gl_FragColor = vec4(col.rgb - (1.0 - col.rgb)*0.7, alpha);
   // gl_FragColor = vec4(col.rgb - (1.0 - col.rgb)*0.6, alpha);
-  // gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+  // gl_FragColor = vec4(1.0, 0.0, 1.0, alpha);
 }
