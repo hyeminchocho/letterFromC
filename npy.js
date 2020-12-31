@@ -1,5 +1,3 @@
-// const fetch = require("node-fetch");
-
 class npyjs {
 
     constructor(opts) {
@@ -82,7 +80,6 @@ class npyjs {
             hcontents
                 .replace(/'/g, '"')
                 .replace("False", "false")
-                // .replace("True", "true")
                 .replace("(", "[")
                 .replace(/,*\),*/g, "]")
         );
