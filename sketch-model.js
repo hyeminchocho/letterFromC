@@ -1,3 +1,8 @@
+const params = new URLSearchParams(location.search);
+const seed = parseInt(params.get("seed"));
+const page = parseInt(params.get("page"));
+const rng = new Math.seedrandom(seed);
+
 let lineIdx = 0;
 
 let lineHeight = 32;
@@ -29,6 +34,7 @@ let secondRaster;
 let secondRasterFontIdx;
 let outroRaster = null;
 
+let maxRasterLength = 22;
 let handCache = null;
 
 let mainFontSeed;
@@ -98,19 +104,15 @@ function preload(){
 }
 
 function setup(){
-    const params = new URLSearchParams(location.search);
-    const seed = parseInt(params.get("seed"));
-    // const page = parseInt(params.get("page"));
-    //create a random number generator with our designated seed
-    const rng = new Math.seedrandom(seed);
+    randomSeed(seed);
 
     imagePage = createGraphics(2412, 3074);
     imagePage.background(255, 255, 255, 255);
 
-    mainFontSeed = tf.randomNormal([1, 1, 32]);
-    mainUpperSeed = tf.randomNormal([1, 96]);
-    hlFontSeed = tf.randomNormal([1, 1, 32]);
-    hlUpperSeed = tf.randomNormal([1, 96]);
+    mainFontSeed = tf.randomNormal([1, 1, 32], undefined, undefined, undefined, rng());
+    mainUpperSeed = tf.randomNormal([1, 96], undefined, undefined, undefined, rng());
+    hlFontSeed = tf.randomNormal([1, 1, 32], undefined, undefined, undefined, rng());
+    hlUpperSeed = tf.randomNormal([1, 96], undefined, undefined, undefined, rng());
 
     pageLineHeight = (imagePage.height-topPadding*2) / numLinesPage;
     pageCharWidth = pageLineHeight * 0.5;
@@ -126,6 +128,8 @@ function setup(){
 
     // Load random frames
     loadFrames(pickRandomFrames());
+    // loadFrames([24, 48, 120, 240]);
+    // loadFrames([48, 82, 120, 240]);
 
     pageText.push(...script01);
     addHoorayScript();
@@ -136,6 +140,9 @@ function setup(){
     pageText.push(...script03);
     addHandScript();
     pageText.push(...script04);
+
+    lineIdx = numLinesPage*(page-1);
+
 }
 
 function pickRandomFrames(){
@@ -149,11 +156,11 @@ function pickRandomFrames(){
 
 function init(){
     // Set raster fonts
-    firstRasterFontIdx = Math.round((fonts.length-1) * Math.random());
-    secondRasterFontIdx = Math.round((fonts.length-1) * Math.random());
+    firstRasterFontIdx = Math.round((fonts.length-1) * rng());
+    secondRasterFontIdx = Math.round((fonts.length-1) * rng());
     for(let i = 0; i < 10; i++){
         if (firstRasterFontIdx == secondRasterFontIdx){
-            secondRasterFontIdx = Math.round((fonts.length-1) * Math.random());
+            secondRasterFontIdx = Math.round((fonts.length-1) * rng());
         } else {
             break;
         }
@@ -174,7 +181,7 @@ function draw(){
         init();
         isInited = true;
     }
-    if (lineIdx < pageText.length && g.isLoadedWeights && isInited){
+    if (lineIdx < min(pageText.length, numLinesPage*page) && g.isLoadedWeights && isInited){
         let cursorIdx = lineIdx%numLinesPage;
         if (cursorIdx == 0){
             imagePage.background(255, 255, 255, 255);
@@ -185,7 +192,8 @@ function draw(){
                  topPadding+pageLineHeight*cursorIdx);
 
         image(imagePage,
-              Math.floor(lineIdx/numLinesPage)*(previewWidth+pagePadding), 0,
+              // Math.floor(lineIdx/numLinesPage)*(previewWidth+pagePadding), 0,
+              0, 0,
               previewWidth, windowHeight);
 
         lineIdx += 1;
@@ -208,8 +216,8 @@ function drawLine(txt, x, y){
     if (txt.slice(0, 1) == "^"){
         mode = "^";
         txt = txt.slice(1);
-        fontSeed = tf.randomNormal([1, 1, 32]);
-        upperSeed = tf.randomNormal([1, 96]);
+        fontSeed = tf.randomNormal([1, 1, 32], undefined, undefined, undefined, rng());
+        upperSeed = tf.randomNormal([1, 96]), undefined, undefined, undefined, rng();
     } else if (txt.slice(0, 1) == "~"){
         mode = "~";
         txt = txt.slice(1);
@@ -271,8 +279,8 @@ function drawLine(txt, x, y){
             wUpperSeed = hlUpperSeed;
         } else if (word.slice(0, 1) == "!"){
             word = word.slice(1);
-            wFontSeed = tf.randomNormal([1, 1, 32]);
-            wUpperSeed = tf.randomNormal([1, 96]);
+            wFontSeed = tf.randomNormal([1, 1, 32], undefined, undefined, undefined, rng());
+            wUpperSeed = tf.randomNormal([1, 96], undefined, undefined, undefined, rng());
         }
         let resWd = generateWord(word, wFontSeed, wUpperSeed);
         let im = tensor2image(resWd);
@@ -337,7 +345,7 @@ function renderHandOutro(line, baseFont, targetFont){
         outroRaster = Array(numCharLine).fill(1.0);
     }
     for (let i = 0; i < numCharLine; i++){
-        if (Math.random() < 0.1 && !outroCutIdx.includes(i)){
+        if (rng() < 0.1 && !outroCutIdx.includes(i)){
             outroRaster[i] = 0.0;
         }
     }
@@ -349,25 +357,23 @@ function renderHandOutro(line, baseFont, targetFont){
     let ra02 = outroRaster.slice(outroCutIdx[0], outroCutIdx[1]+1);
     let ra03 = outroRaster.slice(outroCutIdx[1]);
 
-    console.log("render outro");
     let randCoeff = 0.075;
 
     let m01 = tf.tile(tf.reshape(tf.tensor(ra01), [1, ra01.length, 1]), [1, 1, 32]);
     let fs01 = tf.tile(bFont, [1, li01.length, 1]).mul(m01);
-    fs01 = fs01.add(tf.randomNormal(fs01.shape).mul(randCoeff));
+    fs01 = fs01.add(tf.randomNormal(fs01.shape, undefined, undefined, undefined, rng()).mul(randCoeff));
     let res01 = generateWord(li01, fs01, upperSeed);
 
     let m02 = tf.tile(tf.reshape(tf.tensor(ra02), [1, ra02.length, 1]), [1, 1, 32]);
     let fs02 = tf.tile(bFont, [1, li02.length, 1]).mul(m02);
-    fs02 = fs02.add(tf.randomNormal(fs02.shape).mul(randCoeff));
+    fs02 = fs02.add(tf.randomNormal(fs02.shape, undefined, undefined, undefined, rng()).mul(randCoeff));
     let res02 = generateWord(li02, fs02, upperSeed);
 
     let m03 = tf.tile(tf.reshape(tf.tensor(ra03), [1, ra03.length, 1]), [1, 1, 32]);
     let fs03 = tf.tile(bFont, [1, li03.length, 1]).mul(m03);
-    fs03 = fs03.add(tf.randomNormal(fs03.shape).mul(randCoeff));
+    fs03 = fs03.add(tf.randomNormal(fs03.shape, undefined, undefined, undefined, rng()).mul(randCoeff));
     let res03 = generateWord(li03, fs03, upperSeed);
 
-    console.log(res02);
     let res = tf.concat([res01.slice([0, 0, 0], [lineHeight, (li01.length-1)*charWidth, 4]),
                          handCache["zeroC"]["mid"],
                          res02.slice([0, charWidth, 0], [lineHeight, (li02.length-2)*charWidth, 4]),
@@ -388,8 +394,6 @@ function drawWord(im, wl, x, y, isSig){
 
     imagePage.image(buffer, x, y);
     if (isSig){
-        console.log("print C");
-        console.log(signature);
         // let sig = typedArray2image(signature.dataSync(), signature.shape);
         let sig = tensor2image(signature);
         imagePage.image(sig, x+pageCharWidth, y, pageCharWidth*4, pageLineHeight);
@@ -563,6 +567,18 @@ function divideSideWord(sideWord){
 function remapHandRasterLine(parsed, sideWord, c, hl){
     let currLines = [];
     let mappedRaster = [];
+
+    let clipParse = [];
+    for (let i = 0; i < parsed.length; i++){
+        let p = parsed[i];
+        if (p.length > maxRasterLength){
+            clipParse.push(p.slice(0, maxRasterLength-3));
+            clipParse.push(p.slice(maxRasterLength-3));
+        } else {
+            clipParse.push(p);
+        }
+    }
+    parsed = clipParse;
 
     let idx = 0;
     for (let i = 0; i < parsed.length; i++){
@@ -852,7 +868,7 @@ function addHandScript(){
         "choice",
         "blood"
     ];
-    sideList.sort(() => 0.5 - Math.random());
+    sideList.sort(() => 0.5 - rng());
 
     function getCurrSide(count){
         let side = "about";
