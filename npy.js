@@ -1,3 +1,9 @@
+/*!
+ *
+ * Modified version of npyjs https://github.com/aplbrain/npyjs
+ *
+ * @license Apache-2.0
+ */
 class npyjs {
 
     constructor(opts) {

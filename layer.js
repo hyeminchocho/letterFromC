@@ -1,5 +1,16 @@
 let n = new npyjs();
 
+/*!
+ * Following ScrabbleGAN components:
+ *
+ * ConditionalBatchNorm, ResNetBlockUp, NonLocalBlock,
+ * SpatialEmbedding, makeGenerator
+ *
+ * were ported into tensorflow.js from their origial implementation
+ * https://github.com/Nikolai10/scrabble-gan
+ *
+ * @license  MIT
+ */
 class ConditionalBatchNorm extends tf.layers.Layer{
 
     constructor(config){
