@@ -22,7 +22,6 @@ class ConditionalBatchNorm extends tf.layers.Layer{
                                        kernelInitializer:tf.initializers.zeros()});
         this.dense2 = tf.layers.dense({units:this.num_channels, useBias:false,
                                        activation:'linear', kernelRegularizer:tf.regularizers.l2({}),
-                                       // kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 })});
                                        kernelInitializer:tf.initializers.zeros()});
     }
 
@@ -74,14 +73,12 @@ class ResNetBlockUp extends tf.layers.Layer{
         this.conv2d = tf.layers.conv2d({filters:this.output_dim, kernelSize:(3, 3),
                                         strides:(1, 1),
                                         kernelInitializer:
-                                        // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
                                         tf.initializers.zeros(),
                                         kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same', useBias:true});
         this.conv2dT2 = tf.layers.conv2dTranspose({filters:this.output_dim,
                                                    kernelSize:(1, 1), strides:up_stride,
                                                    kernelInitializer:
-                                                   // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
                                                    tf.initializers.zeros(),
                                                    kernelRegularizer:tf.regularizers.l2(),
                                                    padding:'same', useBias:true});
@@ -124,28 +121,23 @@ class NonLocalBlock extends tf.layers.Layer{
 
     build(input_shape){
         this.sigma = this.addWeight("sigma",
-                                     [],
+                                    [],
                                     'float32',
-                                    // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
                                     tf.initializers.zeros(),
                                     undefined,
-                                     true);
+                                    true);
         this.conv2d1 = tf.layers.conv2d({filters:this.num_channels_attn,
                                        kernelSize:(1, 1), useBias:false,
                                        strides:(1, 1),
                                        padding:'same',
-                                       kernelInitializer:
-                                       // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
-                                         tf.initializers.zeros(),
+                                       kernelInitializer:tf.initializers.zeros(),
                                        kernelRegularizer:tf.regularizers.l2(),
                                        name:"conv2d_1"});
         this.conv2d2 = tf.layers.conv2d({filters:this.num_channels_attn,
                                          kernelSize:(1, 1), useBias:false,
                                          strides:(1, 1),
                                          padding:'same',
-                                         kernelInitializer:
-                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
-                                         tf.initializers.zeros(),
+                                         kernelInitializer:tf.initializers.zeros(),
                                          kernelIegularizer:tf.regularizers.l2(),
                                          name:"conv2d_2"});
         this.maxpool = tf.layers.maxPooling2d({poolSize:[2, 2], strides:2});
@@ -153,17 +145,13 @@ class NonLocalBlock extends tf.layers.Layer{
                                          kernelSize:(1, 1), useBias:false,
                                          strides:(1, 1),
                                          padding:'same',
-                                         kernelInitializer:
-                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
-                                         tf.initializers.zeros(),
+                                         kernelInitializer:tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_3"});
         this.conv2d4 = tf.layers.conv2d({filters:this.num_channels, kernelSize:(1, 1),
                                          useBias:false, strides:(1, 1),
                                          padding:'same',
-                                         kernelInitializer:
-                                         // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
-                                         tf.initializers.zeros(),
+                                         kernelInitializer:tf.initializers.zeros(),
                                          kernelRegularizer:tf.regularizers.l2(),
                                          name:"conv2d_4"});
     }
@@ -219,10 +207,7 @@ class SpatialEmbedding extends tf.layers.Layer{
     build(inputShape){
         this.kernel = this.addWeight("filter_bank",
                                      [this.vocab_size, this.filter_dim[0], this.filter_dim[1]],
-                                     null,
-                                     // tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
-                                     tf.initializers.zeros(),
-                                     null, true);
+                                     null, tf.initializers.zeros(), null, true);
     }
 
     computeOutputShape(inputShape){
@@ -258,9 +243,9 @@ class GeneratorPrep extends tf.layers.Layer{
         this.bn = tf.layers.batchNormalization();
         this.conv2d = tf.layers.conv2d({filters:this.c, kernelSize:(3, 3),
                                         strides:(1, 1),
-                                        kernelInitializer:tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
+                                        kernelInitializer:
+                                        tf.initializers.randomNormal({ mean: 0.0, stddev: 1.0 }),
                                         kernelInitializer:tf.initializers.zeros(),
-                                        // kernelRegularizer:tf.regularizers.l2(),
                                         padding:'same'});
         this.B_list = [];
         for (let block_idx = 0; block_idx < this.num_blocks; block_idx++){
@@ -280,18 +265,15 @@ class GeneratorPrep extends tf.layers.Layer{
 
     call(inputs, kwargs){
 
-        let z = inputs[0];  // First 32 latent dims lerp data
-        let x = inputs[1];  // 32 * 3 latent dims
+        let z = inputs[0];
+        let x = inputs[1];
         let y = inputs[2].asType('int32');
         let se_layer = this.spatial_embedding.apply(y);
 
-        // let z_per_block = tf.split(z, this.num_blocks + 1, 2);
-        // let z0 = z_per_block[0];
         let z0 = z.reshape([-1, z.shape[1], 1, z.shape[2]]);
 
         let x_per_block = tf.split(x, this.num_blocks, 1);
 
-        // let net = tf.tile(z0, [1, se_layer.shape[1], 1, 1]);
         let net = z0.matMul(se_layer);
         net = tf.squeeze(net, 2);
 
@@ -361,7 +343,16 @@ function makeGenerator(latent_dim, input_dim, embed_y, gen_path, kernel_reg, blo
     return model;
 }
 
-let toload = [
+function alpha2idx(text){
+    let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
+    let result = [];
+    for (let i = 0; i < text.length; i++){
+        result.push(alphav.indexOf(text[i]));
+    }
+    return result;
+}
+
+let toLoadWeights = [
     "SpatialEmbedding_1-filter_bank.npy",
     "CBN_B1_1_dense_1-kernel.npy",
     "CBN_B1_1_batchNormalization-moving_mean.npy",
@@ -432,33 +423,18 @@ let toLoadFonts = [
     "font-00036.npy"
 ];
 
-let toLoadFrames = [
-    // "frame-00039.npy",
-    // "frame-00079.npy",
-    // "frame-00138.npy",
-    // "frame-00201.npy"
-];
-
+let toLoadFrames = [];
 
 let g = makeGenerator(128, [32, 160, 1], [32, 8192], '', 'spectral_norm', 'B3', 52, false);
+g.isLoadedWeights = false;
+g.startedLoadWeights = false;
+
 let promises = [];
 let fontPromises = [];
 let framePromises = [];
-let signature = null;
 let fonts = [];
 let frames = [];
-g.isLoadedWeights = false;
-console.log("load weight ");
-console.log(g);
-
-function alpha2idx(text){
-    let alphav = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPOQRSTUVWXYZ";
-    let result = [];
-    for (let i = 0; i < text.length; i++){
-        result.push(alphav.indexOf(text[i]));
-    }
-    return result;
-}
+let signature = null;
 
 function loadFrames(arr){
     for (let i = 0; i < arr.length; i++){
@@ -466,12 +442,8 @@ function loadFrames(arr){
         toLoadFrames.push(frName);
     }
     toLoadFrames.map((fn) => {
-        // let fullPath = "frameRaster01-tr/"+fn;
         let fullPath = "frames/"+fn;
-        framePromises.push(n.load(fullPath).then(res => {
-            // let t = tf.tensor(res.data, res.shape);
-            return res.data;
-        }));
+        framePromises.push(n.load(fullPath).then(res => {return res.data;}));
     });
     Promise.all(framePromises).then((v) => {
         frames.push(v[0]);
@@ -482,7 +454,6 @@ function loadFrames(arr){
 
     });
 }
-
 
 toLoadFonts.map((fn) => {
     let fullPath = "fonts/"+fn;
@@ -505,136 +476,128 @@ Promise.all(fontPromises).then((v) => {
 
 });
 
+function loadWeights(seed){
+    g.startedLoadWeights = true;
 
-toload.map((fn) => {
-    // let fullPath = "weights/"+fn;
-    // let fullPath = "mineWeights/"+fn;
-    // let fullPath = "mineWeights02/"+fn;
-    // let fullPath = "mineWeights03/"+fn;
-    // let fullPath = "mineWeights04/"+fn;
-    let fullPath = "weights/"+fn;
-    promises.push(n.load(fullPath).then(res => {
-        console.log(fullPath);
-        let t = tf.tensor(res.data, res.shape);
-        return t;
-    }));
-});
+    toLoadWeights.map((fn) => {
+        let fullPath = "weights/"+fn;
+        promises.push(n.load(fullPath).then(res => {
+            console.log(fullPath);
+            let t = tf.tensor(res.data, res.shape);
+            return t;
+        }));
+    });
 
-function setRandom(ly){
-    let ws = ly.getWeights();
-    let rs = [];
-    for (let i = 0; i < ws.length; i++){
-        rs.push(tf.randomNormal(ws[i].shape));
+    function setRandom(ly, seed){
+        let ws = ly.getWeights();
+        let rs = [];
+        for (let i = 0; i < ws.length; i++){
+            rs.push(tf.randomNormal(ws[i].shape, undefined, undefined, undefined, seed));
+        }
+        ly.setWeights(rs);
+        return seed + 0.0425;
     }
-    ly.setWeights(rs);
+
+    Promise.all(promises).then((v) => {
+        let fontSeed = tf.randomNormal([1, 1, 32], undefined, undefined, undefined, seed);
+        fontSeed = tf.tile(fontSeed, [1, 4, 1]);
+        let upperSeed = tf.randomNormal([1, 96], undefined, undefined, undefined, seed);
+        let labels = tf.tensor([[0, 1, 2, 3]], undefined, 'int32');
+        let res = g.predict([fontSeed, upperSeed, labels]);
+
+        let genPrep = g.layers[3];
+        let B1 = genPrep.B_list[0];
+        let B2 = genPrep.B_list[1];
+        let B3 = genPrep.B_list[2];
+        let NLB = genPrep.B_list[3];
+
+        // Set random weights to get signature
+        seed = setRandom(B1.cbn.dense1, seed);
+        seed = setRandom(B1.cbn.bn, seed);
+        seed = setRandom(B1.cbn.dense2, seed);
+        seed = setRandom(B1.conv2dT1, seed);
+        seed = setRandom(B1.cbn2.dense1, seed);
+        seed = setRandom(B1.cbn2.bn, seed);
+        seed = setRandom(B1.cbn2.dense2, seed);
+        seed = setRandom(B1.conv2d, seed);
+        seed = setRandom(B1.conv2dT2, seed);
+
+        seed = setRandom(B2.cbn.dense1, seed);
+        seed = setRandom(B2.cbn.bn, seed);
+        seed = setRandom(B2.cbn.dense2, seed);
+        seed = setRandom(B2.conv2dT1, seed);
+        seed = setRandom(B2.cbn2.dense1, seed);
+        seed = setRandom(B2.cbn2.bn, seed);
+        seed = setRandom(B2.cbn2.dense2, seed);
+        seed = setRandom(B2.conv2d, seed);
+        seed = setRandom(B2.conv2dT2, seed);
+
+        seed = setRandom(B3.cbn.dense1, seed);
+        seed = setRandom(B3.cbn.bn, seed);
+        seed = setRandom(B3.cbn.dense2, seed);
+        seed = setRandom(B3.conv2dT1, seed);
+        seed = setRandom(B3.cbn2.dense1, seed);
+        seed = setRandom(B3.cbn2.bn, seed);
+        seed = setRandom(B3.cbn2.dense2, seed);
+        seed = setRandom(B3.conv2d, seed);
+        seed = setRandom(B3.conv2dT2, seed);
+
+        seed = setRandom(NLB, seed);
+        seed = setRandom(genPrep.bn, seed);
+        seed = setRandom(genPrep.conv2d, seed);
+
+        // Generate Signature
+        res = g.predict([fontSeed, upperSeed, labels]);
+        res = res.add(1.0).div(2.0).mul(255);
+        res = res.squeeze([0]).asType('int32');
+        let alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
+        res = tf.concat([res, res, res, alpha], 2);
+        signature = [res.dataSync(), res.shape];
+
+
+        genPrep.spatial_embedding.setWeights([v[0]]);
+
+        B1.cbn.dense1.setWeights([v[1]]);
+        B1.cbn.bn.setWeights([v[2], v[3]]);
+        B1.cbn.dense2.setWeights([v[4]]);
+        B1.conv2dT1.setWeights([v[5], v[6]]);
+        B1.cbn2.dense1.setWeights([v[7]]);
+        B1.cbn2.bn.setWeights([v[8], v[9]]);
+        B1.cbn2.dense2.setWeights([v[10]]);
+        B1.conv2d.setWeights([v[11], v[12]]);
+        B1.conv2dT2.setWeights([v[13], v[14]]);
+
+        let s = 14;
+        B2.cbn.dense1.setWeights([v[s+1]]);
+        B2.cbn.bn.setWeights([v[s+2], v[s+3]]);
+        B2.cbn.dense2.setWeights([v[s+4]]);
+        B2.conv2dT1.setWeights([v[s+5], v[s+6]]);
+        B2.cbn2.dense1.setWeights([v[s+7]]);
+        B2.cbn2.bn.setWeights([v[s+8], v[s+9]]);
+        B2.cbn2.dense2.setWeights([v[s+10]]);
+        B2.conv2d.setWeights([v[s+11], v[s+12]]);
+        B2.conv2dT2.setWeights([v[s+13], v[s+14]]);
+
+        s = 28;
+        B3.cbn.dense1.setWeights([v[s+1]]);
+        B3.cbn.bn.setWeights([v[s+2], v[s+3]]);
+        B3.cbn.dense2.setWeights([v[s+4]]);
+        B3.conv2dT1.setWeights([v[s+5], v[s+6]]);
+        B3.cbn2.dense1.setWeights([v[s+7]]);
+        B3.cbn2.bn.setWeights([v[s+8], v[s+9]]);
+        B3.cbn2.dense2.setWeights([v[s+10]]);
+        B3.conv2d.setWeights([v[s+11], v[s+12]]);
+        B3.conv2dT2.setWeights([v[s+13], v[s+14]]);
+
+        s = 42;
+        NLB.setWeights([v[s+1]]);
+        genPrep.bn.setWeights([v[s+2], v[s+3], v[s+4], v[s+5]]);
+        genPrep.conv2d.setWeights([v[s+6], v[s+7]]);
+
+        g.isLoadedWeights = true;
+    });
 }
 
-Promise.all(promises).then((v) => {
-    let seed = tf.randomNormal([1, 1, 32]);
-    seed = tf.tile(seed, [1, 4, 1]);
-    let upperSeed = tf.randomNormal([1, 96]);
-    let labels = tf.tensor([[0, 1, 2, 3]], undefined, 'int32');
-    let res = g.predict([seed, upperSeed, labels]);
-    res = res.add(1.0).div(2.0).mul(255);
-    res = res.squeeze([0]).asType('int32');
-    let alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
-    res = tf.concat([res, res, res, alpha], 2);
-    signature = res;
-    // signature = signature.dataSync();
-
-    let genPrep = g.layers[3];
-    let B1 = genPrep.B_list[0];
-    let B2 = genPrep.B_list[1];
-    let B3 = genPrep.B_list[2];
-    let NLB = genPrep.B_list[3];
-
-
-    // Set random weights
-    setRandom(B1.cbn.dense1);
-    setRandom(B1.cbn.bn);
-    setRandom(B1.cbn.dense2);
-    setRandom(B1.conv2dT1);
-    setRandom(B1.cbn2.dense1);
-    setRandom(B1.cbn2.bn);
-    setRandom(B1.cbn2.dense2);
-    setRandom(B1.conv2d);
-    setRandom(B1.conv2dT2);
-
-    setRandom(B2.cbn.dense1);
-    setRandom(B2.cbn.bn);
-    setRandom(B2.cbn.dense2);
-    setRandom(B2.conv2dT1);
-    setRandom(B2.cbn2.dense1);
-    setRandom(B2.cbn2.bn);
-    setRandom(B2.cbn2.dense2);
-    setRandom(B2.conv2d);
-    setRandom(B2.conv2dT2);
-
-    setRandom(B3.cbn.dense1);
-    setRandom(B3.cbn.bn);
-    setRandom(B3.cbn.dense2);
-    setRandom(B3.conv2dT1);
-    setRandom(B3.cbn2.dense1);
-    setRandom(B3.cbn2.bn);
-    setRandom(B3.cbn2.dense2);
-    setRandom(B3.conv2d);
-    setRandom(B3.conv2dT2);
-
-    setRandom(NLB);
-    setRandom(genPrep.bn);
-    setRandom(genPrep.conv2d);
-
-    res = g.predict([seed, upperSeed, labels]);
-    res = res.add(1.0).div(2.0).mul(255);
-    res = res.squeeze([0]).asType('int32');
-    alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
-    res = tf.concat([res, res, res, alpha], 2);
-    signature = res;
-
-
-
-    // Have to flush out the dead at least once
-    genPrep.spatial_embedding.setWeights([v[0]]);
-
-    B1.cbn.dense1.setWeights([v[1]]);
-    B1.cbn.bn.setWeights([v[2], v[3]]);
-    B1.cbn.dense2.setWeights([v[4]]);
-    B1.conv2dT1.setWeights([v[5], v[6]]);
-    B1.cbn2.dense1.setWeights([v[7]]);
-    B1.cbn2.bn.setWeights([v[8], v[9]]);
-    B1.cbn2.dense2.setWeights([v[10]]);
-    B1.conv2d.setWeights([v[11], v[12]]);
-    B1.conv2dT2.setWeights([v[13], v[14]]);
-
-    let s = 14;
-    B2.cbn.dense1.setWeights([v[s+1]]);
-    B2.cbn.bn.setWeights([v[s+2], v[s+3]]);
-    B2.cbn.dense2.setWeights([v[s+4]]);
-    B2.conv2dT1.setWeights([v[s+5], v[s+6]]);
-    B2.cbn2.dense1.setWeights([v[s+7]]);
-    B2.cbn2.bn.setWeights([v[s+8], v[s+9]]);
-    B2.cbn2.dense2.setWeights([v[s+10]]);
-    B2.conv2d.setWeights([v[s+11], v[s+12]]);
-    B2.conv2dT2.setWeights([v[s+13], v[s+14]]);
-
-    s = 28;
-    B3.cbn.dense1.setWeights([v[s+1]]);
-    B3.cbn.bn.setWeights([v[s+2], v[s+3]]);
-    B3.cbn.dense2.setWeights([v[s+4]]);
-    B3.conv2dT1.setWeights([v[s+5], v[s+6]]);
-    B3.cbn2.dense1.setWeights([v[s+7]]);
-    B3.cbn2.bn.setWeights([v[s+8], v[s+9]]);
-    B3.cbn2.dense2.setWeights([v[s+10]]);
-    B3.conv2d.setWeights([v[s+11], v[s+12]]);
-    B3.conv2dT2.setWeights([v[s+13], v[s+14]]);
-
-    s = 42;
-    NLB.setWeights([v[s+1]]);
-    genPrep.bn.setWeights([v[s+2], v[s+3], v[s+4], v[s+5]]);
-    genPrep.conv2d.setWeights([v[s+6], v[s+7]]);
-
-    g.isLoadedWeights = true;
-});
 
 
 

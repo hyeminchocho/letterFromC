@@ -3,26 +3,22 @@ self.importScripts('npy.js');
 self.importScripts('layer.js');
 
 self.onmessage = function(event) {
-    if (event.data == null){
-        self.postMessage([g.isLoadedWeights]);
+    if (event.data[0] == "load"){
+        if (!g.startedLoadWeights){
+            loadWeights(event.data[1]);
+        }
+        self.postMessage(["load", g.isLoadedWeights, signature]);
         return;
     }
-    let idx = event.data[0];
-    let txt = event.data[1];
-    let fontSeed = event.data[2];
-    if (fontSeed == null){
-        fontSeed = tf.randomNormal([1, 1, 32]);
-    } else {
-        fontSeed = tf.tensor(fontSeed);
-        fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
-    }
-    let upperSeed = event.data[3];
-    if (upperSeed == null){
-        upperSeed = tf.randomNormal([1, 96]);
-    } else {
-        upperSeed = tf.tensor(upperSeed);
-        upperSeed = tf.reshape(upperSeed, [1, 96]);
-    }
+    let idx = event.data[1];
+    let txt = event.data[2];
+    let fontSeed = event.data[3];
+    let upperSeed = event.data[4];
+
+    fontSeed = tf.tensor(fontSeed);
+    fontSeed = tf.reshape(fontSeed, [1, 1, 32]);
+    upperSeed = tf.tensor(upperSeed);
+    upperSeed = tf.reshape(upperSeed, [1, 96]);
 
 
     let da = alpha2idx(txt);
@@ -35,7 +31,5 @@ self.onmessage = function(event) {
     res = res.asType('int32');
     let alpha = tf.ones([res.shape[0], res.shape[1], 1], 'int32').mul(255);
     res = tf.concat([res, res, res, alpha], 2);
-    // const printCanvas = document.getElementByID("#lalala");
-    // const image = tf.browser.toPixels(res, printCanvas);
-    self.postMessage([[res.dataSync(), res.shape], idx]);
+    self.postMessage(["eval", [res.dataSync(), res.shape], idx]);
 };
