@@ -512,7 +512,7 @@ toload.map((fn) => {
     // let fullPath = "mineWeights02/"+fn;
     // let fullPath = "mineWeights03/"+fn;
     // let fullPath = "mineWeights04/"+fn;
-    let fullPath = "mineWeights05/"+fn;
+    let fullPath = "weights/"+fn;
     promises.push(n.load(fullPath).then(res => {
         console.log(fullPath);
         let t = tf.tensor(res.data, res.shape);
