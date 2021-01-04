@@ -124,15 +124,7 @@ function setup(){
     randomSeed(seed);
 
     loadWeights(rng());
-    // loadFrames(pickRandomFrames());
-    let frn = 43;
-    // loadFrames([frn*4, frn*4+1, frn*4+2, frn*4+3]);
-    let frs = [];
-    for (let i = 0; i < 251; i++){
-        frs.push(i);
-    }
-    // loadFrames([frn*4+3, frn*4+1, frn*4+2, frn*4]);
-    loadFrames(frs);
+    loadFrames(pickRandomFrames());
 
     imagePage = createGraphics(2412, 3074);
     imagePage.background(255, 255, 255, 255);
@@ -157,18 +149,17 @@ function setup(){
     pickRasterFonts();
     handWordList.sort(() => 0.5 - rng());
 
-    // pageText.push(...script01);
-    // addHoorayScript();
-    // pageText.push(...script02);
-    // addAnnyeongScript();
-    // pageText.push(...["", ""]);
-    // addNihaoScript();
-    // pageText.push(...script03);
+    pageText.push(...script01);
+    addHoorayScript();
+    pageText.push(...script02);
+    addAnnyeongScript();
+    pageText.push(...["", ""]);
+    addNihaoScript();
+    pageText.push(...script03);
     addHandScript();
-    // pageText.push(...script04);
+    pageText.push(...script04);
 
-    // lineIdx = numLinesPage*(page-1);
-    lineIdx = 0;
+    lineIdx = numLinesPage*(page-1);
 }
 
 function pickRandomFrames(){
@@ -210,8 +201,8 @@ function draw(){
         isInited = true;
     }
 
-    // if (lineIdx < min(pageText.length, numLinesPage*page) &&
-    if (g.isLoadedWeights  && g.isLoadedFrames && isInited){
+    if (lineIdx < min(pageText.length, numLinesPage*page) &&
+        g.isLoadedWeights  && g.isLoadedFrames && isInited){
 
         let cursorIdx = lineIdx%numLinesPage;
         if (cursorIdx == 0){
@@ -229,15 +220,15 @@ function draw(){
     background(230);
     image(imagePage, 0, 0, previewWidth, windowHeight);
 
-    // if (lineIdx >= min(pageText.length, numLinesPage*page) && !isDownloaded){
-    //     let saveName = seed.toString()+"_"+page.toString()+".png";
-    //     let img = createImage(imagePage.width, imagePage.height);
-    //     img.copy(imagePage, 0, 0, imagePage.width, imagePage.height,
-    //              0, 0, imagePage.width, imagePage.height);
-    //     img.save(saveName);
-    //     imagePage.remove();
-    //     isDownloaded = true;
-    // }
+    if (lineIdx >= min(pageText.length, numLinesPage*page) && !isDownloaded){
+        let saveName = seed.toString()+"_"+page.toString()+".png";
+        let img = createImage(imagePage.width, imagePage.height);
+        img.copy(imagePage, 0, 0, imagePage.width, imagePage.height,
+                 0, 0, imagePage.width, imagePage.height);
+        img.save(saveName);
+        imagePage.remove();
+        isDownloaded = true;
+    }
 
 }
 
@@ -285,7 +276,6 @@ function drawLine(txt, x, y){
             txt = sp[1];
         }
     } else if (txt.slice(0, 1) == "@"){
-        console.log(txt);
         mode = "@";
         txt = txt.slice(1);
         let sp = txt.split("/");
@@ -895,18 +885,16 @@ function addHandScript(){
 
 
     function getCurrSide(count){
-        // let side = "about";
-        let side = "fffffforeign";
-        // if (Math.floor(count/sideUnit) % 2 == 1){
-        //     side = handWordList[(Math.floor(count/sideUnit)-1)/2];
-        // }
+        let side = "about";
+        if (Math.floor(count/sideUnit) % 2 == 1){
+            side = handWordList[(Math.floor(count/sideUnit)-1)/2];
+        }
         return side;
     }
 
     let count = 0;
     frNum = 0;
-    // for (let i = 0; i < 32-8; i++){
-    for (let f = 108; f < 251; f++){
+    for (let f = 0; f < 4; f++){
         for (let i = 2; i < 32-8; i++){
             let side = getCurrSide(count);
             count += 1;
@@ -914,41 +902,6 @@ function addHandScript(){
             lines.push(li);
         }
     }
-    // for (let i = 2; i < 32-8; i++){
-    //     let side = getCurrSide(count);
-    //     count += 1;
-    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-    //     lines.push(li);
-    // }
-    // frNum = 1;
-    // for (let i = 0; i < 32-8; i++){
-    //     let side = getCurrSide(count);
-    //     count += 1;
-    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-    //     lines.push(li);
-    // }
-    // frNum = 2;
-    // for (let i = 0; i < 32-8; i++){
-    //     let side = getCurrSide(count);
-    //     count += 1;
-    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-    //     lines.push(li);
-    // }
-    // frNum = 3;
-    // for (let i = 0; i < 32-8; i++){
-    //     let side = getCurrSide(count);
-    //     count += 1;
-    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-    //     lines.push(li);
-    // }
-
-    // Outro
-    // for (let i = 0; i < 26; i++){
-    //     let side = getCurrSide(count);
-    //     count += 1;
-    //     let li = "?".concat(side);
-    //     lines.push(li);
-    // }
 
     pageText.push(...lines);
 }
