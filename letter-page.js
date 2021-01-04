@@ -896,7 +896,7 @@ function addHandScript(){
 
     function getCurrSide(count){
         // let side = "about";
-        let side = "foreign";
+        let side = "fffffforeign";
         // if (Math.floor(count/sideUnit) % 2 == 1){
         //     side = handWordList[(Math.floor(count/sideUnit)-1)/2];
         // }
@@ -906,7 +906,7 @@ function addHandScript(){
     let count = 0;
     frNum = 0;
     // for (let i = 0; i < 32-8; i++){
-    for (let f = 0; f < 251; f++){
+    for (let f = 108; f < 251; f++){
         for (let i = 2; i < 32-8; i++){
             let side = getCurrSide(count);
             count += 1;
