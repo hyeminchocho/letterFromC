@@ -457,10 +457,13 @@ function loadFrames(arr){
         framePromises.push(n.load(fullPath).then(res => {return res.data;}));
     });
     Promise.all(framePromises).then((v) => {
-        frames.push(v[0]);
-        frames.push(v[1]);
-        frames.push(v[2]);
-        frames.push(v[3]);
+        for (let i = 0; i < v.length; i++){
+            frames.push(v[i]);
+        }
+        // frames.push(v[0]);
+        // frames.push(v[1]);
+        // frames.push(v[2]);
+        // frames.push(v[3]);
         g.isLoadedFrames = true;
 
     });

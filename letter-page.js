@@ -124,7 +124,15 @@ function setup(){
     randomSeed(seed);
 
     loadWeights(rng());
-    loadFrames(pickRandomFrames());
+    // loadFrames(pickRandomFrames());
+    let frn = 43;
+    // loadFrames([frn*4, frn*4+1, frn*4+2, frn*4+3]);
+    let frs = [];
+    for (let i = 0; i < 251; i++){
+        frs.push(i);
+    }
+    // loadFrames([frn*4+3, frn*4+1, frn*4+2, frn*4]);
+    loadFrames(frs);
 
     imagePage = createGraphics(2412, 3074);
     imagePage.background(255, 255, 255, 255);
@@ -149,17 +157,18 @@ function setup(){
     pickRasterFonts();
     handWordList.sort(() => 0.5 - rng());
 
-    pageText.push(...script01);
-    addHoorayScript();
-    pageText.push(...script02);
-    addAnnyeongScript();
-    pageText.push(...["", ""]);
-    addNihaoScript();
-    pageText.push(...script03);
+    // pageText.push(...script01);
+    // addHoorayScript();
+    // pageText.push(...script02);
+    // addAnnyeongScript();
+    // pageText.push(...["", ""]);
+    // addNihaoScript();
+    // pageText.push(...script03);
     addHandScript();
-    pageText.push(...script04);
+    // pageText.push(...script04);
 
-    lineIdx = numLinesPage*(page-1);
+    // lineIdx = numLinesPage*(page-1);
+    lineIdx = 0;
 }
 
 function pickRandomFrames(){
@@ -201,8 +210,8 @@ function draw(){
         isInited = true;
     }
 
-    if (lineIdx < min(pageText.length, numLinesPage*page) &&
-        g.isLoadedWeights  && g.isLoadedFrames && isInited){
+    // if (lineIdx < min(pageText.length, numLinesPage*page) &&
+    if (g.isLoadedWeights  && g.isLoadedFrames && isInited){
 
         let cursorIdx = lineIdx%numLinesPage;
         if (cursorIdx == 0){
@@ -220,15 +229,15 @@ function draw(){
     background(230);
     image(imagePage, 0, 0, previewWidth, windowHeight);
 
-    if (lineIdx >= min(pageText.length, numLinesPage*page) && !isDownloaded){
-        let saveName = seed.toString()+"_"+page.toString()+".png";
-        let img = createImage(imagePage.width, imagePage.height);
-        img.copy(imagePage, 0, 0, imagePage.width, imagePage.height,
-                 0, 0, imagePage.width, imagePage.height);
-        img.save(saveName);
-        imagePage.remove();
-        isDownloaded = true;
-    }
+    // if (lineIdx >= min(pageText.length, numLinesPage*page) && !isDownloaded){
+    //     let saveName = seed.toString()+"_"+page.toString()+".png";
+    //     let img = createImage(imagePage.width, imagePage.height);
+    //     img.copy(imagePage, 0, 0, imagePage.width, imagePage.height,
+    //              0, 0, imagePage.width, imagePage.height);
+    //     img.save(saveName);
+    //     imagePage.remove();
+    //     isDownloaded = true;
+    // }
 
 }
 
@@ -276,6 +285,7 @@ function drawLine(txt, x, y){
             txt = sp[1];
         }
     } else if (txt.slice(0, 1) == "@"){
+        console.log(txt);
         mode = "@";
         txt = txt.slice(1);
         let sp = txt.split("/");
@@ -471,7 +481,6 @@ function renderHandRaster(raster, idx, sideWord, baseFont, targetFont){
                 padLine = currLine.slice(0, 1).concat(currLine);
                 padP = p.slice(0, 1).concat(p);
             }
-
             let fontSeed = raster2font(padP, bFont, tFont);
             let res = generateWord(padLine, fontSeed, upperSeed);
             if (i == 0){
@@ -579,31 +588,41 @@ function remapHandRasterLine(parsed, sideWord, c, hl){
     let pre = pp[0];
     let post = pp[1];
 
-    if (pre.length > currLines[0].length-1){
-        let p = currLines[0].concat(currLines[1]);
-        p = pre.concat(p.slice(pre.length));
-        currLines = p.concat(currLines.slice(2));
-
-        let r = mappedRaster.slice(0, 1).concat(mappedRaster.slice(1, 2));
-        mappedRaster = r.concat(mappedRaster.slice(2));
-    } else {
+    if (pre.length < currLines[0].length){
         let p = currLines[0];
         p = pre.concat(p.slice(pre.length));
         currLines = [p].concat(currLines.slice(1));
+    } else {
+        let p = "";
+        let r = [];
+        while (pre.length > p.length-1){
+            p = p.concat(currLines[0]);
+            r = r.concat(mappedRaster[0]);
+            currLines = currLines.slice(1);
+            mappedRaster = mappedRaster.slice(1);
+        }
+        p = pre.concat(p.slice(pre.length));
+        currLines = [p].concat(currLines);
+        mappedRaster = [r].concat(mappedRaster);
     }
 
-    if (post.length > currLines[currLines.length-1].length-1){
-        let p = currLines[currLines.length-2].concat(currLines[currLines.length-1]);
-        p = p.slice(0, p.length-post.length).concat(post);
-        currLines = currLines.slice(0, -2).concat(p);
-
-        let r = mappedRaster[mappedRaster.length-2]
-            .concat(mappedRaster[mappedRaster.length-1]);
-        mappedRaster = mappedRaster.slice(0, -2).concat([r]);
-    } else {
+    if (post.length < currLines[currLines.length-1].length){
         let p = currLines[currLines.length-1];
         p = p.slice(0, p.length-post.length).concat(post);
         currLines = currLines.slice(0, -1).concat(p);
+    } else {
+        let p = "";
+        let r = [];
+        while (post.length > p.length-1){
+            p = currLines[currLines.length-1].concat(p);
+            r = mappedRaster[mappedRaster.length-1].concat(r);
+
+            currLines = currLines.slice(0, -1);
+            mappedRaster = mappedRaster.slice(0, -1);
+        }
+        p = p.slice(0, p.length-post.length).concat(post);
+        currLines = currLines.concat(p);
+        mappedRaster = mappedRaster.concat([r]);
     }
 
     if (isAllSameNum(mappedRaster[0])){
@@ -876,50 +895,60 @@ function addHandScript(){
 
 
     function getCurrSide(count){
-        let side = "about";
-        if (Math.floor(count/sideUnit) % 2 == 1){
-            side = handWordList[(Math.floor(count/sideUnit)-1)/2];
-        }
+        // let side = "about";
+        let side = "foreign";
+        // if (Math.floor(count/sideUnit) % 2 == 1){
+        //     side = handWordList[(Math.floor(count/sideUnit)-1)/2];
+        // }
         return side;
     }
 
     let count = 0;
     frNum = 0;
-    for (let i = 0; i < 32-8; i++){
-        let side = getCurrSide(count);
-        count += 1;
-        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-        lines.push(li);
+    // for (let i = 0; i < 32-8; i++){
+    for (let f = 0; f < 251; f++){
+        for (let i = 2; i < 32-8; i++){
+            let side = getCurrSide(count);
+            count += 1;
+            let li = "@".concat(f.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+            lines.push(li);
+        }
     }
-    frNum = 1;
-    for (let i = 0; i < 32-8; i++){
-        let side = getCurrSide(count);
-        count += 1;
-        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-        lines.push(li);
-    }
-    frNum = 2;
-    for (let i = 0; i < 32-8; i++){
-        let side = getCurrSide(count);
-        count += 1;
-        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-        lines.push(li);
-    }
-    frNum = 3;
-    for (let i = 0; i < 32-8; i++){
-        let side = getCurrSide(count);
-        count += 1;
-        let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
-        lines.push(li);
-    }
+    // for (let i = 2; i < 32-8; i++){
+    //     let side = getCurrSide(count);
+    //     count += 1;
+    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+    //     lines.push(li);
+    // }
+    // frNum = 1;
+    // for (let i = 0; i < 32-8; i++){
+    //     let side = getCurrSide(count);
+    //     count += 1;
+    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+    //     lines.push(li);
+    // }
+    // frNum = 2;
+    // for (let i = 0; i < 32-8; i++){
+    //     let side = getCurrSide(count);
+    //     count += 1;
+    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+    //     lines.push(li);
+    // }
+    // frNum = 3;
+    // for (let i = 0; i < 32-8; i++){
+    //     let side = getCurrSide(count);
+    //     count += 1;
+    //     let li = "@".concat(frNum.toString()).concat("/").concat(i.toString()).concat("/").concat(side);
+    //     lines.push(li);
+    // }
 
     // Outro
-    for (let i = 0; i < 26; i++){
-        let side = getCurrSide(count);
-        count += 1;
-        let li = "?".concat(side);
-        lines.push(li);
-    }
+    // for (let i = 0; i < 26; i++){
+    //     let side = getCurrSide(count);
+    //     count += 1;
+    //     let li = "?".concat(side);
+    //     lines.push(li);
+    // }
 
     pageText.push(...lines);
 }
